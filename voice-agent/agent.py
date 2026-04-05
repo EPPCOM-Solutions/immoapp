@@ -423,4 +423,7 @@ if __name__ == "__main__":
         api_secret=LIVEKIT_API_SECRET,
         ws_url=LIVEKIT_URL,
         prewarm_fnc=_prewarm_ollama,
+        num_idle_processes=1,       # Statt 4 — spart ~3 GB RAM (Whisper je ~1 GB pro Prozess)
+        job_memory_warn_mb=1400,    # Warning erst ab 1.4 GB (realistischer Wert)
+        job_memory_limit_mb=1800,   # Hard-kill erst ab 1.8 GB
     ))
