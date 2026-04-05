@@ -229,7 +229,7 @@
         <!-- Verarbeitungsanzeige -->
         <div class="processing-bar" id="processingBar">
             <div class="processing-dots"><span></span><span></span><span></span></div>
-            <span>Nexo denkt nach…</span>
+            <span id="processingLabel">Nexo denkt nach…</span>
             <span class="processing-timer" id="processingTimer">0s</span>
         </div>
 
@@ -270,6 +270,7 @@
         let connected = false;
         let processingInterval = null;
         let processingStart = null;
+        let waitingForResponse = false;  // true = Filler läuft, echter Timer weiterhin aktiv
 
         // ── Chat ──────────────────────────────────────────────
         function addBubble(text, who) {
@@ -285,10 +286,13 @@
         function startProcessing() {
             processingStart = Date.now();
             document.getElementById('processingTimer').textContent = '0s';
+            document.getElementById('processingLabel').textContent = 'Nexo denkt nach…';
             document.getElementById('processingBar').classList.add('active');
             processingInterval = setInterval(() => {
                 const s = Math.floor((Date.now() - processingStart) / 1000);
                 document.getElementById('processingTimer').textContent = s + 's';
+                // Label nach 3s wechseln (Filler abgeschlossen, LLM generiert)
+                if (s >= 3) document.getElementById('processingLabel').textContent = 'Antwort wird generiert…';
             }, 500);
         }
 
@@ -376,32 +380,46 @@
                     document.getElementById('audioContainer').innerHTML = '';
                 });
 
-                // Agent-Audio startet → Nexo antwortet
-                room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
-                    if (track.kind === Track.Kind.Audio) {
-                        const el = track.attach();
-                        el.setAttribute('autoplay', '');
-                        document.getElementById('audioContainer').appendChild(el);
+                // Agent-Audio startet
+                room.on(RoomEvent.TrackSubscribed, (track) => {
+                    if (track.kind !== Track.Kind.Audio) return;
+                    const el = track.attach();
+                    el.setAttribute('autoplay', '');
+                    document.getElementById('audioContainer').appendChild(el);
+
+                    // Filler-Phrase startet innerhalb ~2s nach Nutzereingabe.
+                    // Timer weiterhin anzeigen bis echte Antwort kommt (>2s elapsed).
+                    const elapsed = processingStart ? Date.now() - processingStart : 9999;
+                    if (waitingForResponse && elapsed < 2500) {
+                        // Filler läuft — Timer sichtbar lassen, nur Label anpassen
+                        document.getElementById('processingLabel').textContent = 'Einen Moment…';
+                    } else {
+                        waitingForResponse = false;
                         setMicState('speaking');
                     }
                 });
 
-                // Agent-Audio endet → zurück zum Zuhören
+                // Agent-Audio endet
                 room.on(RoomEvent.TrackUnsubscribed, (track) => {
                     track.detach().forEach(el => el.remove());
-                    if (connected) setMicState('listening');
+                    if (waitingForResponse) {
+                        // Filler beendet — weiter im Processing-Zustand
+                        document.getElementById('processingLabel').textContent = 'Antwort wird generiert…';
+                    } else if (connected) {
+                        setMicState('listening');
+                    }
                 });
 
-                // Aktivitätswechsel: User hat aufgehört zu sprechen → Verarbeitung
+                // User hat aufgehört zu sprechen → Verarbeitungsanzeige
                 room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
                     const userSpeaking = speakers.some(s => s.isLocal);
                     if (!userSpeaking && connected) {
-                        // Kurze Verzögerung — LiveKit braucht ~100ms um VAD zu finalisieren
                         setTimeout(() => {
                             if (connected && document.getElementById('micBtn').classList.contains('listening')) {
+                                waitingForResponse = true;
                                 setMicState('processing');
                             }
-                        }, 200);
+                        }, 300);
                     }
                 });
 
