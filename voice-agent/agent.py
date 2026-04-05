@@ -416,24 +416,24 @@ async def entrypoint(ctx: JobContext):
 
 
 # ─── Ollama Pre-Warm (eliminiert Kaltstart-Latenz beim ersten Gespräch) ──
-async def _prewarm_ollama(proc=None):
+def _prewarm_ollama(proc=None):
     """
-    Sendet einen Dummy-Request an Ollama beim Worker-Start, damit das Modell
-    im RAM gehalten wird und der erste echte Anruf nicht 15-30s wartet.
+    Sendet einen Dummy-Request an Ollama beim Worker-Start (sync, via requests).
+    Lädt das Modell in den RAM damit der erste Anruf keine Kaltstart-Latenz hat.
     """
+    import requests
     try:
-        # Native Ollama API (strip /v1 suffix if present)
         ollama_native_url = OLLAMA_BASE_URL.rstrip("/").removesuffix("/v1")
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            logger.info(f"Pre-warming Ollama model '{OLLAMA_MODEL}'...")
-            resp = await client.post(
-                f"{ollama_native_url}/api/generate",
-                json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False, "options": {"num_predict": 1}},
-            )
-            if resp.status_code == 200:
-                logger.info("✓ Ollama model pre-warmed and ready")
-            else:
-                logger.warning(f"Ollama pre-warm returned HTTP {resp.status_code}")
+        logger.info(f"Pre-warming Ollama model '{OLLAMA_MODEL}'...")
+        resp = requests.post(
+            f"{ollama_native_url}/api/generate",
+            json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False, "options": {"num_predict": 1}},
+            timeout=120,
+        )
+        if resp.status_code == 200:
+            logger.info("✓ Ollama model pre-warmed and ready")
+        else:
+            logger.warning(f"Ollama pre-warm returned HTTP {resp.status_code}")
     except Exception as e:
         logger.warning(f"Ollama pre-warm failed (non-fatal): {e}")
 
