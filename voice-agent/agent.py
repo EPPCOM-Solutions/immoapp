@@ -416,7 +416,7 @@ async def entrypoint(ctx: JobContext):
 
 
 # ─── Ollama Pre-Warm (eliminiert Kaltstart-Latenz beim ersten Gespräch) ──
-async def _prewarm_ollama():
+async def _prewarm_ollama(proc=None):
     """
     Sendet einen Dummy-Request an Ollama beim Worker-Start, damit das Modell
     im RAM gehalten wird und der erste echte Anruf nicht 15-30s wartet.
