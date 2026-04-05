@@ -70,6 +70,11 @@ VOICEBOT_STREAMING_ENABLED = os.getenv("VOICEBOT_STREAMING_ENABLED", "true").low
 # ─── System Prompt ──────────────────────────────────────────────────────
 SYSTEM_PROMPT = """Du bist Nexo, der KI-Assistent von Eppkom Solutions. Antworte ausschließlich auf Deutsch.
 
+GESPRÄCHSFÜHRUNG:
+- Merke dir den Namen des Nutzers und alle weiteren Informationen aus dem Gespräch.
+- Sprich den Nutzer ab dem Moment, wo du seinen Namen kennst, damit an.
+- Baue frühere Aussagen des Nutzers natürlich in spätere Antworten ein (z.B. "Da du aus der Gesundheitsbranche kommst, …").
+
 REGELN (strikt einhalten):
 - Nur Deutsch. Niemals Englisch, Chinesisch oder andere Sprachen.
 - Maximal 2 kurze Sätze. Du sprichst, schreibst nicht.
@@ -168,7 +173,6 @@ async def _strip_think_chunks(stream: AsyncIterable) -> AsyncIterable:
                 if after:
                     # Rebuild a minimal chunk with the remaining content
                     try:
-                        from livekit.agents import llm as agents_llm
                         import copy
                         leftover = copy.deepcopy(chunk)
                         leftover.choices[0].delta.content = after
@@ -353,19 +357,40 @@ async def entrypoint(ctx: JobContext):
     ]
     _filler_index = 0
 
+    async def _publish_data(payload: dict):
+        """Send JSON data message to all participants (for chat UI)."""
+        try:
+            import json
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            await ctx.room.local_participant.publish_data(data, reliable=True)
+        except Exception as e:
+            logger.debug(f"publish_data failed: {e}")
+
     @session.on("user_speech_committed")
-    def _on_user_speech(_ev):
+    def _on_user_speech(ev):
         nonlocal _filler_index
+        # Publish user transcript to chat UI
+        text = getattr(ev, "transcript", None) or getattr(ev, "text", None) or ""
+        if text:
+            asyncio.ensure_future(_publish_data({"type": "user_speech", "text": text}))
+        # Filler phrase while LLM is thinking
         phrase = FILLER_PHRASES[_filler_index % len(FILLER_PHRASES)]
         _filler_index += 1
         asyncio.ensure_future(session.say(phrase, allow_interruptions=True))
 
+    @session.on("agent_speech_committed")
+    def _on_agent_speech(ev):
+        # Publish agent response to chat UI
+        text = getattr(ev, "transcript", None) or getattr(ev, "text", None) or ""
+        if text:
+            asyncio.ensure_future(_publish_data({"type": "agent_speech", "text": text}))
+
     await session.start(room=ctx.room, agent=agent)
     logger.info("Agent started and listening")
 
-    await session.say(
-        "Hallo! Ich bin Nexo, der KI-Assistent von Eppkom Solutions. Wie kann ich dir helfen?"
-    )
+    greeting = "Hallo! Ich bin Nexo, der KI-Assistent von Eppkom Solutions. Wie heißt du?"
+    await session.say(greeting)
+    await _publish_data({"type": "agent_speech", "text": greeting})
 
     await asyncio.Event().wait()
 
