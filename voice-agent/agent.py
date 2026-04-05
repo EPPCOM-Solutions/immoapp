@@ -47,7 +47,7 @@ WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")  # auto, cuda, cpu
 
 # LLM Configuration (Ollama local)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://10.0.0.3:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")  # Bestes Deutsch-Modell auf CPU
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")  # Meta Llama — kein Chinesisch, gutes Deutsch
 
 # TTS Configuration (Cartesia Primary - Ultra-Low Latency)
 CARTESIA_API_KEY = os.getenv("CARTESIA_API_KEY", "")
@@ -77,17 +77,17 @@ VOICEBOT_STREAMING_ENABLED = os.getenv("VOICEBOT_STREAMING_ENABLED", "true").low
 ENABLE_PARTIAL_TRANSCRIPTS = os.getenv("ENABLE_PARTIAL_TRANSCRIPTS", "true").lower() == "true"
 
 # ─── System Prompt with RAG Context ─────────────────────────────────────
-SYSTEM_PROMPT = """Du bist Nexo, Sprachassistent von Eppkom Solutions.
+SYSTEM_PROMPT = """You are Nexo, a voice assistant for Eppkom Solutions. You MUST always respond in German only.
 
-STRIKTE REGELN FÜR SPRACHAUSGABE:
-1. Antworte IMMER auf Deutsch.
-2. Maximal 2 kurze Sätze — nie mehr. Du sprichst, kein Text.
-3. Begrüße NIEMALS erneut. Keine Einleitungen wie "Natürlich", "Gerne", "Selbstverständlich".
-4. Komm direkt zur Antwort. Kein Smalltalk.
-5. Schreibe "Eppkom" (nie "EPPCOM").
-6. Wenn du etwas nicht weißt: "Das weiß ich leider nicht."
+Rules (strictly follow):
+- Respond ONLY in German. Never use Chinese, English, or any other language.
+- Maximum 2 short sentences. You are speaking, not writing.
+- Never greet again. No filler words like "Natürlich", "Gerne", "Selbstverständlich".
+- Answer directly. Use the provided knowledge below to answer accurately.
+- Write "Eppkom" (never "EPPCOM").
+- If you don't know something: say "Das weiß ich leider nicht."
 
-Eppkom Solutions entwickelt KI-Chatbots und automatisiert Geschäftsprozesse."""
+Eppkom Solutions entwickelt KI-Chatbots und automatisiert Geschäftsprozesse für KMU in Deutschland."""
 
 
 # ─── RAG Context Caching ───────────────────────────────────────────────
@@ -111,8 +111,8 @@ async def fetch_rag_context(query: str) -> Optional[str]:
         return _rag_cache[query_hash]
 
     try:
-        # 8.0s timeout: RAG includes vector embedding (~3s) + DB queries (~2-3s)
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        # 4.0s timeout: cached after first call, so fast on follow-up queries
+        async with httpx.AsyncClient(timeout=4.0) as client:
             payload = {
                 "tenant_id": RAG_TENANT_ID,  # UUID for n8n RAG Query workflow
                 "query": query,
@@ -332,11 +332,42 @@ class NexoStreamingAgent(Agent):
         super().__init__(instructions=instructions)
 
     async def llm_node(self, chat_ctx, tools, model_settings):
-        """
-        Override LLM node. RAG temporarily disabled for latency optimization.
-        Delegates streaming to the framework's default implementation.
-        """
-        # TODO: Re-enable RAG when webhook is fixed and latency is acceptable
+        """RAG-augmented LLM node: injects company knowledge into system prompt."""
+        # Extract last user query for RAG lookup
+        user_query = None
+        for msg in reversed(chat_ctx.messages):
+            if msg.role == "user":
+                content = msg.content
+                if isinstance(content, str):
+                    user_query = content
+                elif isinstance(content, list):
+                    for part in content:
+                        if hasattr(part, "text"):
+                            user_query = part.text
+                            break
+                break
+
+        if user_query:
+            rag_context = await fetch_rag_context(user_query)
+            if rag_context:
+                # Inject RAG context into system message
+                updated = False
+                new_messages = []
+                for msg in chat_ctx.messages:
+                    if msg.role == "system" and not updated:
+                        from livekit.agents import llm as agents_llm
+                        new_messages.append(agents_llm.ChatMessage(
+                            role="system",
+                            content=SYSTEM_PROMPT + f"\n\nRELEVANTES WISSEN:\n{rag_context}"
+                        ))
+                        updated = True
+                    else:
+                        new_messages.append(msg)
+                if updated:
+                    chat_ctx = chat_ctx.copy()
+                    chat_ctx._messages = new_messages
+                    logger.info(f"RAG context injected ({len(rag_context)} chars)")
+
         return Agent.default.llm_node(self, chat_ctx, tools, model_settings)
 
 
@@ -391,10 +422,12 @@ async def _prewarm_ollama():
     im RAM gehalten wird und der erste echte Anruf nicht 15-30s wartet.
     """
     try:
+        # Native Ollama API (strip /v1 suffix if present)
+        ollama_native_url = OLLAMA_BASE_URL.rstrip("/").removesuffix("/v1")
         async with httpx.AsyncClient(timeout=120.0) as client:
             logger.info(f"Pre-warming Ollama model '{OLLAMA_MODEL}'...")
             resp = await client.post(
-                f"{OLLAMA_BASE_URL}/api/generate",
+                f"{ollama_native_url}/api/generate",
                 json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False, "options": {"num_predict": 1}},
             )
             if resp.status_code == 200:
