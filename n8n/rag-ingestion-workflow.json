@@ -1,0 +1,295 @@
+{
+  "name": "[DEMO] RAG Document Ingestion (Flat Tables)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rag-ingest",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-ingest",
+      "name": "Webhook: POST /rag-ingest",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Eingabe validieren\nconst body = $input.first().json;\n\nif (!body.tenant_slug) throw new Error('tenant_slug fehlt');\nif (!body.name) throw new Error('name fehlt');\nif (!body.source_type) body.source_type = 'file';\n\nif (!['file', 'url', 'manual'].includes(body.source_type)) {\n  throw new Error('source_type muss file, url oder manual sein');\n}\n\nif (body.source_type === 'file' && !body.file_base64) {\n  throw new Error('file_base64 fehlt bei source_type=file');\n}\n\nreturn [{ json: {\n  tenant_slug: body.tenant_slug,\n  name: body.name,\n  source_type: body.source_type,\n  file_base64: body.file_base64 || null,\n  file_name: body.file_name || body.name,\n  file_type: body.file_type || 'pdf',\n  origin_url: body.origin_url || null,\n  tags: body.tags || [],\n  doc_type: body.doc_type || 'general',\n  manual_text: body.manual_text || null\n}}];"
+      },
+      "id": "validate-input",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, slug, name, status FROM public.tenants WHERE slug = '{{ $json.tenant_slug }}' AND status = 'active' LIMIT 1;",
+        "options": {}
+      },
+      "id": "get-tenant",
+      "name": "Get Tenant from DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [400, 0],
+      "credentials": {
+        "postgres": {
+          "name": "postgres-rag (app_db)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst tenant = rows[0];\nif (!tenant || !tenant.id) {\n  throw new Error('Tenant nicht gefunden oder nicht aktiv: ' + $('Validate Input').first().json.tenant_slug);\n}\nconst input = $('Validate Input').first().json;\nreturn [{ json: { ...input, tenant_id: tenant.id, tenant_name: tenant.name } }];"
+      },
+      "id": "check-tenant",
+      "name": "Check Tenant Exists",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.sources (tenant_id, name, source_type, origin_url, file_name, file_type, status, created_by, tags, metadata) VALUES ('{{ $json.tenant_id }}', '{{ $json.name }}', '{{ $json.source_type }}', {{ $json.origin_url ? \"'\" + $json.origin_url + \"'\" : 'NULL' }}, '{{ $json.file_name }}', '{{ $json.file_type }}', 'processing', 'n8n-demo-ingestion', ARRAY[{{ $json.tags.map(t => \"'\" + t + \"'\").join(',') }}]::text[], '{}') RETURNING id;",
+        "options": {}
+      },
+      "id": "insert-source",
+      "name": "Insert Source (public)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [800, 0],
+      "credentials": {
+        "postgres": {
+          "name": "postgres-rag (app_db)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceRow = $input.first().json;\nconst prev = $('Check Tenant Exists').first().json;\nreturn [{ json: { ...prev, source_id: sourceRow.id } }];"
+      },
+      "id": "merge-source-id",
+      "name": "Merge Source ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Text-Extraktion\nconst item = $input.first().json;\nconst fileType = item.file_type || 'txt';\nlet extractedText = '';\n\nif (item.source_type === 'manual' && item.manual_text) {\n  extractedText = item.manual_text;\n} else if (fileType === 'txt' || fileType === 'md') {\n  extractedText = Buffer.from(item.file_base64 || '', 'base64').toString('utf-8');\n} else if (fileType === 'html') {\n  const raw = Buffer.from(item.file_base64 || '', 'base64').toString('utf-8');\n  extractedText = raw\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/&amp;/g, '&')\n    .replace(/\\s+/g, ' ')\n    .trim();\n} else if (fileType === 'pdf') {\n  // PDF: Versuche Text aus base64 zu extrahieren\n  // Fuer echte PDF-Extraktion: n8n 'Extract From File' Node vorschalten\n  // oder pdftotext Service nutzen\n  const raw = Buffer.from(item.file_base64 || '', 'base64').toString('utf-8');\n  // Einfache Heuristik: Suche lesbaren Text zwischen PDF-Markern\n  extractedText = raw\n    .replace(/[^\\x20-\\x7E\\xC0-\\xFF\\n]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  // Falls kein sinnvoller Text gefunden\n  if (extractedText.length < 50) {\n    throw new Error('PDF-Text konnte nicht extrahiert werden. Nutze den n8n \"Extract From File\" Node oder lade Text manuell hoch (source_type=manual, manual_text=...).');\n  }\n}\n\nif (!extractedText || extractedText.length < 10) {\n  throw new Error('Kein Text extrahiert — Datei leer oder Format nicht unterstuetzt');\n}\n\n// file_base64 entfernen um Speicher zu sparen\nconst { file_base64, ...rest } = item;\nreturn [{ json: { ...rest, extracted_text: extractedText, char_count: extractedText.length } }];"
+      },
+      "id": "extract-text",
+      "name": "Extract Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.documents (tenant_id, source_id, title, doc_type, language, word_count, char_count) VALUES ('{{ $json.tenant_id }}', '{{ $json.source_id }}', '{{ $json.name }}', '{{ $json.doc_type }}', 'de', {{ Math.round($json.char_count / 5) }}, {{ $json.char_count }}) RETURNING id;",
+        "options": {}
+      },
+      "id": "insert-document",
+      "name": "Insert Document (public)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1400, 0],
+      "credentials": {
+        "postgres": {
+          "name": "postgres-rag (app_db)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const docRow = $input.first().json;\nconst prev = $('Extract Text').first().json;\nreturn [{ json: { ...prev, document_id: docRow.id } }];"
+      },
+      "id": "merge-doc-id",
+      "name": "Merge Document ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Text in Chunks aufteilen\nconst CHUNK_SIZE = 1000;\nconst CHUNK_OVERLAP = 150;\n\nfunction chunkText(text, size, overlap) {\n  const chunks = [];\n  let start = 0;\n  let index = 0;\n  text = text.replace(/\\r\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();\n  while (start < text.length) {\n    let end = start + size;\n    if (end < text.length) {\n      const lastPeriod = text.lastIndexOf('.', end);\n      const lastNewline = text.lastIndexOf('\\n', end);\n      const boundary = Math.max(lastPeriod, lastNewline);\n      if (boundary > start + size * 0.5) end = boundary + 1;\n    }\n    const content = text.substring(start, Math.min(end, text.length)).trim();\n    if (content.length > 50) {\n      chunks.push({ chunk_index: index, content, char_count: content.length });\n      index++;\n    }\n    start = end - overlap;\n    if (start <= 0 && index > 0) break;\n    if (start >= text.length) break;\n  }\n  return chunks;\n}\n\nconst item = $input.first().json;\nconst chunks = chunkText(item.extracted_text, CHUNK_SIZE, CHUNK_OVERLAP);\n\nreturn chunks.map(chunk => ({\n  json: {\n    tenant_id: item.tenant_id,\n    source_id: item.source_id,\n    document_id: item.document_id,\n    name: item.name,\n    tenant_slug: item.tenant_slug,\n    ...chunk,\n    total_chunks: chunks.length\n  }\n}));"
+      },
+      "id": "chunk-text",
+      "name": "Chunk Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.chunks (tenant_id, document_id, source_id, chunk_index, content, char_count) VALUES ('{{ $json.tenant_id }}', '{{ $json.document_id }}', '{{ $json.source_id }}', {{ $json.chunk_index }}, {{ $escapeString($json.content) }}, {{ $json.char_count }}) RETURNING id;",
+        "options": {}
+      },
+      "id": "insert-chunk",
+      "name": "Insert Chunk (public)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2000, 0],
+      "credentials": {
+        "postgres": {
+          "name": "postgres-rag (app_db)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunkRow = $input.first().json;\nconst prev = $('Chunk Text').item;\nreturn [{ json: { ...prev.json, chunk_db_id: chunkRow.id } }];"
+      },
+      "id": "merge-chunk-id",
+      "name": "Merge Chunk ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.OLLAMA_BASE_URL || 'http://10.0.0.3:11434' }}/api/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"qwen3-embedding:0.6b\",\n  \"prompt\": {{ JSON.stringify($json.content) }}\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "get-embeddings",
+      "name": "Get Embeddings (qwen3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const embResponse = $input.first().json;\nconst prev = $('Merge Chunk ID').first().json;\n\nconst embedding = embResponse.embedding;\nif (!embedding || !Array.isArray(embedding)) {\n  throw new Error('Embedding nicht erhalten von Ollama');\n}\n\nreturn [{ json: {\n  ...prev,\n  embedding: JSON.stringify(embedding),\n  embedding_dims: embedding.length\n}}];"
+      },
+      "id": "prepare-embedding",
+      "name": "Prepare Embedding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.embeddings (tenant_id, chunk_id, model_name, embedding) VALUES ('{{ $json.tenant_id }}', '{{ $json.chunk_db_id }}', 'qwen3-embedding:0.6b', '{{ $json.embedding }}'::vector(1024));",
+        "options": {}
+      },
+      "id": "insert-embedding",
+      "name": "Insert Embedding (public)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2800, 0],
+      "credentials": {
+        "postgres": {
+          "name": "postgres-rag (app_db)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.sources SET status='indexed', updated_at=NOW() WHERE id='{{ $json.source_id }}';",
+        "options": {}
+      },
+      "id": "update-source-status",
+      "name": "Update Source: indexed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [3000, 0],
+      "credentials": {
+        "postgres": {
+          "name": "postgres-rag (app_db)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, source_id: $json.source_id, chunks: $json.total_chunks, tenant: $json.tenant_slug }) }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [3200, 0]
+    }
+  ],
+  "connections": {
+    "Webhook: POST /rag-ingest": {
+      "main": [[{ "node": "Validate Input", "type": "main", "index": 0 }]]
+    },
+    "Validate Input": {
+      "main": [[{ "node": "Get Tenant from DB", "type": "main", "index": 0 }]]
+    },
+    "Get Tenant from DB": {
+      "main": [[{ "node": "Check Tenant Exists", "type": "main", "index": 0 }]]
+    },
+    "Check Tenant Exists": {
+      "main": [[{ "node": "Insert Source (public)", "type": "main", "index": 0 }]]
+    },
+    "Insert Source (public)": {
+      "main": [[{ "node": "Merge Source ID", "type": "main", "index": 0 }]]
+    },
+    "Merge Source ID": {
+      "main": [[{ "node": "Extract Text", "type": "main", "index": 0 }]]
+    },
+    "Extract Text": {
+      "main": [[{ "node": "Insert Document (public)", "type": "main", "index": 0 }]]
+    },
+    "Insert Document (public)": {
+      "main": [[{ "node": "Merge Document ID", "type": "main", "index": 0 }]]
+    },
+    "Merge Document ID": {
+      "main": [[{ "node": "Chunk Text", "type": "main", "index": 0 }]]
+    },
+    "Chunk Text": {
+      "main": [[{ "node": "Insert Chunk (public)", "type": "main", "index": 0 }]]
+    },
+    "Insert Chunk (public)": {
+      "main": [[{ "node": "Merge Chunk ID", "type": "main", "index": 0 }]]
+    },
+    "Merge Chunk ID": {
+      "main": [[{ "node": "Get Embeddings (qwen3)", "type": "main", "index": 0 }]]
+    },
+    "Get Embeddings (qwen3)": {
+      "main": [[{ "node": "Prepare Embedding", "type": "main", "index": 0 }]]
+    },
+    "Prepare Embedding": {
+      "main": [[{ "node": "Insert Embedding (public)", "type": "main", "index": 0 }]]
+    },
+    "Insert Embedding (public)": {
+      "main": [[{ "node": "Update Source: indexed", "type": "main", "index": 0 }]]
+    },
+    "Update Source: indexed": {
+      "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": ""
+  },
+  "tags": ["rag", "ingestion", "demo"],
+  "active": true
+}

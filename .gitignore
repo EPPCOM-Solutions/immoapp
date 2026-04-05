@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+docker/livekit.yaml
+diagnose-output.txt
+*.log
+__pycache__/
+*.pyc
