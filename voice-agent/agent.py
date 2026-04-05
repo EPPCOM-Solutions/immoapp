@@ -47,7 +47,7 @@ WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")  # auto, cuda, cpu
 
 # LLM Configuration (Ollama local)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://10.0.0.3:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3-nothink:latest")  # Fast 2B model, TTFT <0.5s on CPU
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")  # Bestes Deutsch-Modell auf CPU
 
 # TTS Configuration (Cartesia Primary - Ultra-Low Latency)
 CARTESIA_API_KEY = os.getenv("CARTESIA_API_KEY", "")
@@ -77,16 +77,17 @@ VOICEBOT_STREAMING_ENABLED = os.getenv("VOICEBOT_STREAMING_ENABLED", "true").low
 ENABLE_PARTIAL_TRANSCRIPTS = os.getenv("ENABLE_PARTIAL_TRANSCRIPTS", "true").lower() == "true"
 
 # ─── System Prompt with RAG Context ─────────────────────────────────────
-SYSTEM_PROMPT = """Du bist Nexo, der KI-Assistent von Eppkom Solutions - Experte für Workflow-Automatisierung und KI-Chatbots.
-WICHTIG: Schreibe den Firmennamen IMMER als "Eppkom" (nicht "EPPCOM"), damit die Sprachausgabe ihn korrekt als Wort ausspricht.
+SYSTEM_PROMPT = """Du bist Nexo, Sprachassistent von Eppkom Solutions.
 
-ANTWORTSTIL:
-- Formuliere IMMER in eigenen Worten, nie copy-paste
-- Halte Antworten prägnant (max 2-3 Sätze für Voice)
-- Professionell aber zugänglich, kundenorientiert
-- Nutze bereitgestellte Kontextinformationen zur Beantwortung
+STRIKTE REGELN FÜR SPRACHAUSGABE:
+1. Antworte IMMER auf Deutsch.
+2. Maximal 2 kurze Sätze — nie mehr. Du sprichst, kein Text.
+3. Begrüße NIEMALS erneut. Keine Einleitungen wie "Natürlich", "Gerne", "Selbstverständlich".
+4. Komm direkt zur Antwort. Kein Smalltalk.
+5. Schreibe "Eppkom" (nie "EPPCOM").
+6. Wenn du etwas nicht weißt: "Das weiß ich leider nicht."
 
-Wenn du nicht sicher bist, frag nach oder sage ehrlich, dass du die Info nicht hast."""
+Eppkom Solutions entwickelt KI-Chatbots und automatisiert Geschäftsprozesse."""
 
 
 # ─── RAG Context Caching ───────────────────────────────────────────────
@@ -206,14 +207,15 @@ def _get_llm():
     try:
         llm = openai.LLM(
             model=OLLAMA_MODEL,
-            api_key="ollama",  # Not needed for local Ollama
+            api_key="ollama",
             base_url=OLLAMA_BASE_URL,
+            max_tokens=120,      # Max ~2 Sätze für Voice → weniger Wartezeit
+            temperature=0.4,     # Fokussierter, weniger halluziniert
         )
-        logger.info("✓ Ollama LLM initialized successfully")
+        logger.info(f"✓ Ollama LLM {OLLAMA_MODEL} (max_tokens=120, temp=0.4)")
         return llm
     except Exception as e:
         logger.error(f"Failed to initialize Ollama LLM: {e}")
-        logger.warning("Proceeding anyway (will fail at runtime if Ollama unavailable)")
         return openai.LLM(
             model=OLLAMA_MODEL,
             api_key="ollama",
