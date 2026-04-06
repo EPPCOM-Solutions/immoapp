@@ -436,7 +436,8 @@
                     } catch (_) {}
                 });
 
-                await room.connect(data.url || data.token && TOKEN_URL, data.token, { autoSubscribe: true });
+                const lkUrl = data.livekit_url || data.url || 'wss://appdb.eppcom.de/lk';
+                await room.connect(lkUrl, data.token, { autoSubscribe: true });
                 await room.localParticipant.setMicrophoneEnabled(true);
 
             } catch (e) {
