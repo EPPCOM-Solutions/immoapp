@@ -13,7 +13,7 @@ interface Props {
 export const SearchSettingsDialog: React.FC<Props> = ({ settings, setSettings, onClose }) => {
   const [localSettings, setLocalSettings] = useState<SearchSettings>({
     ...settings,
-    locations: settings.locations || (settings as any).location ? [(settings as any).location] : []
+    locations: Array.isArray(settings.locations) && settings.locations.length > 0 ? settings.locations : []
   });
   const [newLocation, setNewLocation] = useState('');
 
@@ -174,6 +174,28 @@ export const SearchSettingsDialog: React.FC<Props> = ({ settings, setSettings, o
              </div>
              <input type="checkbox" className="hidden" checked={!!localSettings.provisionsfrei} onChange={e => setLocalSettings({...localSettings, provisionsfrei: e.target.checked})} />
            </label>
+        </div>
+
+        <div className="border-t border-slate-700/50 pt-5 mt-2">
+           <label className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-3 block">Aktive Portale</label>
+           <div className="grid grid-cols-2 gap-3">
+             {['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immonet', 'Regional'].map((portal) => {
+                const isActive = localSettings.activePortals?.includes(portal);
+                const togglePortal = () => {
+                  const current = localSettings.activePortals || [];
+                  setLocalSettings({ ...localSettings, activePortals: isActive ? current.filter(p => p !== portal) : [...current, portal] });
+                };
+                return (
+                  <label key={portal} className={`flex items-center gap-2 p-2 rounded-xl border transition-colors cursor-pointer ${isActive ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>
+                    <div className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 ${isActive ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-900 border-slate-600'}`}>
+                      {isActive && <svg className="w-3 h-3 text-slate-950" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+                    </div>
+                    <span className="text-sm font-bold truncate">{portal}</span>
+                    <input type="checkbox" className="hidden" checked={isActive} onChange={togglePortal} />
+                  </label>
+                );
+             })}
+           </div>
         </div>
       </div>
       </div>

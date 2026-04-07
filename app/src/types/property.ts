@@ -39,4 +39,5 @@ export interface SearchSettings {
   minSpace: number;
   radius: number;
   provisionsfrei?: boolean; // Immosuchmaschine feature: exclusively private/no fee
+  activePortals: string[];
 }

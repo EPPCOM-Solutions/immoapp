@@ -34,7 +34,8 @@ export default function Home() {
     minRooms: 2,
     minSpace: 50,
     radius: 10,
-    provisionsfrei: false
+    provisionsfrei: false,
+    activePortals: ['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immonet', 'Regional']
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -54,8 +55,9 @@ export default function Home() {
       
       try {
         const locationsQuery = encodeURIComponent(settings.locations.join(','));
+        const portalsQuery = encodeURIComponent((settings.activePortals || []).join(','));
         const radiusConfig = settings.radius || 10;
-        const res = await fetch(`/api/properties?locations=${locationsQuery}&intent=${settings.intent}&provisionsfrei=${settings.provisionsfrei ? 'true' : 'false'}&radius=${radiusConfig}`);
+        const res = await fetch(`/api/properties?locations=${locationsQuery}&portals=${portalsQuery}&intent=${settings.intent}&provisionsfrei=${settings.provisionsfrei ? 'true' : 'false'}&radius=${radiusConfig}`);
         if (!res.ok) {
            throw new Error(await res.text());
         }
@@ -63,9 +65,15 @@ export default function Home() {
         
         // Apply frontend fine grain filtering, keeping items where scraper couldn't resolve details (null)
         const filtered = (data.properties || []).filter((p: Property) => {
-          if (p.price > settings.maxPrice) return false;
-          if (p.rooms !== null && p.rooms < settings.minRooms) return false;
-          if (p.livingSpace !== null && p.livingSpace < settings.minSpace) return false;
+          // If a max price is set below the 2Mil edge case, rule out if strictly higher.
+          if (settings.maxPrice < 2000000 && p.price > 0 && p.price > settings.maxPrice) return false;
+          
+          // Tolerant minRooms check: If user cares (>1), drop ONLY if we are sure it's smaller. Null passes.
+          if (settings.minRooms > 1 && p.rooms !== null && p.rooms < settings.minRooms) return false;
+          
+          // Tolerant minSpace check: If user cares (>10), drop ONLY if we are sure it's smaller. Null passes.
+          if (settings.minSpace > 10 && p.livingSpace !== null && p.livingSpace < settings.minSpace) return false;
+          
           return true;
         });
 

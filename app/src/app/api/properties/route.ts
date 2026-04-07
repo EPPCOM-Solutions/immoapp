@@ -22,9 +22,13 @@ async function getKleinanzeigenLocationId(location: string): Promise<string | nu
 }
 
 async function fetchKleinanzeigen(location: string, intent: SearchIntent, provisionsfrei: boolean, radius: number): Promise<Property[]> {
+  // Für MVP: Wir suchen Wohnungen zur Miete oder Kauf. Kapitalanlage sucht primär Häuser/Wohnungen.
   let categoryPath = 'wohnung-mieten';
   let categoryId = 'c203';
-  if (intent === 'buy' || intent === 'investment') {
+  if (intent === 'buy') {
+    categoryPath = 'wohnung-kaufen';
+    categoryId = 'c196'; // c196 is Wohnung Kaufen, c208 is Haus Kaufen. We use Wohnung as default.
+  } else if (intent === 'investment') {
     categoryPath = 'haus-kaufen';
     categoryId = 'c208';
   }
@@ -81,25 +85,25 @@ async function fetchKleinanzeigen(location: string, intent: SearchIntent, provis
 
       tags.forEach(tag => {
         if (tag.toLowerCase().includes('zimmer')) {
-          const m = tag.match(/(\d+(?:,\d+)?)/);
+          const m = tag.match(/(\d+(?:[.,]\d+)?)/);
           if(m) rooms = parseFloat(m[1].replace(',', '.'));
         }
         if (tag.toLowerCase().includes('m²')) {
-          const m = tag.match(/(\d+(?:,\d+)?)/);
+          const m = tag.match(/(\d+(?:[.,]\d+)?)/);
           if(m) livingSpace = parseFloat(m[1].replace(',', '.'));
         }
       });
       
       if (rooms === null) {
-        const roomMatch = rawDesc.match(/(\d+(?:,\d+)?)\s*Zimmer/i);
+        const roomMatch = rawDesc.match(/(\d+(?:[.,]\d+)?)\s*Zimmer/i);
         if (roomMatch) rooms = parseFloat(roomMatch[1].replace(',', '.'));
       }
       if (rooms === null) {
-        const titleRoomMatch = title.match(/(\d+(?:,\d+)?)\s*Zi/i) || title.match(/(\d+(?:,\d+)?)\s*Zimmer/i);
+        const titleRoomMatch = title.match(/(\d+(?:[.,]\d+)?)\s*Zi/i) || title.match(/(\d+(?:[.,]\d+)?)\s*Zimmer/i);
         if (titleRoomMatch) rooms = parseFloat(titleRoomMatch[1].replace(',', '.'));
       }
       if (livingSpace === null) {
-        const spaceMatch = rawDesc.match(/(\d+(?:,\d+)?)\s*m²/i);
+        const spaceMatch = rawDesc.match(/(\d+(?:[.,]\d+)?)\s*m²/i);
         if (spaceMatch) livingSpace = parseFloat(spaceMatch[1].replace(',', '.'));
       }
 
@@ -205,9 +209,50 @@ function generateMockImmoscout(location: string, intent: SearchIntent): Property
   }];
 }
 
+function generateMockImmonet(location: string, intent: SearchIntent): Property[] {
+  // Mock für Immonet (da starker Bot-Schutz)
+  const price = intent === 'rent' ? Math.floor(Math.random() * 900) + 500 : Math.floor(Math.random() * 400000) + 150000;
+  return [{
+     id: `imonet-${Math.random()}`,
+     title: `(Immonet) Schöne Immobilie in ${location}`,
+     address: `${location} Umgebung`,
+     price: price,
+     rooms: 2.5,
+     livingSpace: 65,
+     imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000&auto=format&fit=crop',
+     url: 'https://www.immonet.de/',
+     source: 'Immonet',
+     competitionScore: 6,
+     priceTrend: 'steady'
+  }];
+}
+
+function generateMockRegional(location: string, intent: SearchIntent): Property[] {
+  // Lokales dynamisches Portal Mock
+  const portalName = location.toLowerCase().includes('stuttgart') ? 'Stuttgarter Nachrichten' 
+    : location.toLowerCase().includes('münchen') ? 'Münchener Merkur'
+    : `Lokalportal ${location}`;
+    
+  const price = intent === 'rent' ? Math.floor(Math.random() * 700) + 400 : Math.floor(Math.random() * 300000) + 100000;
+  return [{
+     id: `regio-${Math.random()}`,
+     title: `(Lokalinserat) Geheimtipp in ${location}`,
+     address: `${location}`,
+     price: price,
+     rooms: 4,
+     livingSpace: 90,
+     imageUrl: 'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1000&auto=format&fit=crop',
+     url: '#',
+     source: portalName,
+     competitionScore: 3, // Regional has less competition
+     priceTrend: 'new'
+  }];
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const locationsParam = searchParams.get('locations') || '';
+  const portalsParam = searchParams.get('portals') || '';
   const intent = searchParams.get('intent') as SearchIntent || 'rent';
   const provisionsfrei = searchParams.get('provisionsfrei') === 'true';
   const radius = parseInt(searchParams.get('radius') || '10', 10);
@@ -217,16 +262,28 @@ export async function GET(request: Request) {
   }
 
   const locations = locationsParam.split(',').map(l => l.trim()).filter(Boolean);
+  const portals = portalsParam ? portalsParam.split(',').map(p => p.trim()) : ['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immonet', 'Regional']; // default all
   
   try {
-    // Run all scrapes concurrently
+    // Run all scrapes concurrently based on selected portals
     const promises: Promise<Property[]>[] = [];
     
     locations.forEach(loc => {
-      promises.push(fetchKleinanzeigen(loc, intent, provisionsfrei, radius));
-      promises.push(fetchImmowelt(loc, intent, provisionsfrei));
-      // Injects 1 mock per region for immoscout
-      promises.push(Promise.resolve(generateMockImmoscout(loc, intent))); 
+      if (portals.includes('Kleinanzeigen')) {
+        promises.push(fetchKleinanzeigen(loc, intent, provisionsfrei, radius));
+      }
+      if (portals.includes('Immowelt')) {
+        promises.push(fetchImmowelt(loc, intent, provisionsfrei));
+      }
+      if (portals.includes('ImmoScout24')) {
+        promises.push(Promise.resolve(generateMockImmoscout(loc, intent))); 
+      }
+      if (portals.includes('Immonet')) {
+        promises.push(Promise.resolve(generateMockImmonet(loc, intent)));
+      }
+      if (portals.includes('Regional')) {
+        promises.push(Promise.resolve(generateMockRegional(loc, intent)));
+      }
     });
 
     const results = await Promise.all(promises);
