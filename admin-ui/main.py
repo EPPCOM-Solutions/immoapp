@@ -2610,17 +2610,14 @@ async def get_lk_token_public(
     ).rstrip(b"=")
     token = (signing_input + b"." + signature).decode()
 
-    # Raum erstellen (auto-dispatcht den Agent via livekit-agents WorkerType.ROOM)
-    # livekit-agents v1.5: Agent wird dispatcht sobald Raum auf Server existiert
+    # Raum (neu) erstellen → livekit-agents WorkerType.ROOM dispatcht Agent bei jedem neuen Raum.
+    # Wenn Raum schon existiert und leer ist: erst löschen, dann neu erstellen.
     try:
         lk_internal = os.getenv("LIVEKIT_INTERNAL_URL", "http://livekit-server:7880")
         admin_payload = {
-            "iss": LIVEKIT_KEY,
-            "sub": "admin-room-create",
-            "iat": now_i,
-            "exp": now_i + 60,
-            "nbf": now_i,
-            "video": {"roomCreate": True, "roomAdmin": True, "room": safe_room},
+            "iss": LIVEKIT_KEY, "sub": "admin-room-create",
+            "iat": now_i, "exp": now_i + 60, "nbf": now_i,
+            "video": {"roomCreate": True, "roomAdmin": True, "roomList": True, "room": safe_room},
         }
         admin_pl  = _b64.urlsafe_b64encode(json.dumps(admin_payload).encode()).rstrip(b"=")
         admin_inp = header + b"." + admin_pl
@@ -2628,12 +2625,26 @@ async def get_lk_token_public(
             _hmac.new(LIVEKIT_SECRET.encode(), admin_inp, hashlib.sha256).digest()
         ).rstrip(b"=")
         admin_jwt = (admin_inp + b"." + admin_sig).decode()
+        lk_headers = {"Authorization": f"Bearer {admin_jwt}", "Content-Type": "application/json"}
 
         async with httpx.AsyncClient(timeout=3.0) as _lk:
+            # Prüfen ob Raum existiert und leer ist → dann löschen für frischen Dispatch
+            rooms_resp = await _lk.post(
+                f"{lk_internal}/twirp/livekit.RoomService/ListRooms",
+                json={}, headers=lk_headers,
+            )
+            rooms = rooms_resp.json().get("rooms", [])
+            existing = next((r for r in rooms if r.get("name") == safe_room), None)
+            if existing and existing.get("num_participants", 1) == 0:
+                await _lk.post(
+                    f"{lk_internal}/twirp/livekit.RoomService/DeleteRoom",
+                    json={"room": safe_room}, headers=lk_headers,
+                )
+            # Raum erstellen — triggert Worker-Job
             await _lk.post(
                 f"{lk_internal}/twirp/livekit.RoomService/CreateRoom",
                 json={"name": safe_room, "empty_timeout": 300},
-                headers={"Authorization": f"Bearer {admin_jwt}", "Content-Type": "application/json"},
+                headers=lk_headers,
             )
     except Exception as _e:
         logging.getLogger("admin-ui").warning(f"CreateRoom failed (non-fatal): {_e}")
