@@ -287,7 +287,7 @@ class NexoStreamingAgent(Agent):
 
     @staticmethod
     def _get_last_user_query(chat_ctx) -> Optional[str]:
-        for msg in reversed(chat_ctx.messages):
+        for msg in reversed(chat_ctx.messages()):
             if msg.role == "user":
                 content = msg.content
                 if isinstance(content, str):
@@ -308,7 +308,7 @@ class NexoStreamingAgent(Agent):
             if rag_context:
                 try:
                     ctx_copy = chat_ctx.copy()
-                    for i, msg in enumerate(ctx_copy.messages):
+                    for i, msg in enumerate(ctx_copy.messages()):
                         if msg.role == "system":
                             from livekit.agents import llm as _llm
                             ctx_copy._messages[i] = _llm.ChatMessage(
