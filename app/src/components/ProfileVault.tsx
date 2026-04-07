@@ -61,7 +61,7 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-2 block">Netto (mtl.)</label>
-              <div className="relative">
+              <div className="relative mb-2">
                 <input 
                   type="number" 
                   value={profile.income}
@@ -70,6 +70,12 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
                 />
                 <span className="absolute left-3.5 top-3.5 text-slate-400 font-bold">€</span>
               </div>
+              <input 
+                type="range" min="0" max="15000" step="100" 
+                value={profile.income} 
+                onChange={e => setProfile({...profile, income: Number(e.target.value)})} 
+                className="w-full accent-emerald-500" 
+              />
             </div>
             <div>
               <label className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-2 block">Personen</label>
@@ -77,7 +83,13 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
                 type="number" 
                 value={profile.householdSize}
                 onChange={e => setProfile({...profile, householdSize: Number(e.target.value)})}
-                className="w-full bg-slate-800/50 border border-slate-700 focus:border-emerald-500 rounded-xl p-3.5 text-white outline-none transition-all"
+                className="w-full bg-slate-800/50 border border-slate-700 focus:border-emerald-500 rounded-xl p-3.5 text-white outline-none transition-all mb-2"
+              />
+              <input 
+                type="range" min="1" max="10" step="1" 
+                value={profile.householdSize} 
+                onChange={e => setProfile({...profile, householdSize: Number(e.target.value)})} 
+                className="w-full accent-emerald-500" 
               />
             </div>
           </div>
@@ -102,7 +114,15 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
               
               return (
                 <div key={portal} className="mb-4 bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
-                  <label className="text-sm font-bold text-slate-300 mb-3 block">{portal} Login</label>
+                  <div className="flex justify-between items-center mb-3">
+                    <label className="text-sm font-bold text-slate-300 block">{portal} Login</label>
+                    <button 
+                      onClick={() => alert(`${portal} Logindaten werden geprüft... (MOCK-Erfolgreich)`)}
+                      className="px-3 py-1 bg-slate-700 hover:bg-emerald-500 hover:text-slate-900 border border-slate-600 rounded-lg text-xs font-bold text-slate-300 transition-colors"
+                    >
+                      Testen
+                    </button>
+                  </div>
                   <div className="space-y-3">
                     <input 
                       type="text" 

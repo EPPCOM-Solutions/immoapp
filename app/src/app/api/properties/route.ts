@@ -21,7 +21,7 @@ async function getKleinanzeigenLocationId(location: string): Promise<string | nu
   return null;
 }
 
-async function fetchKleinanzeigen(location: string, intent: SearchIntent, provisionsfrei: boolean): Promise<Property[]> {
+async function fetchKleinanzeigen(location: string, intent: SearchIntent, provisionsfrei: boolean, radius: number): Promise<Property[]> {
   let categoryPath = 'wohnung-mieten';
   let categoryId = 'c203';
   if (intent === 'buy' || intent === 'investment') {
@@ -33,9 +33,10 @@ async function fetchKleinanzeigen(location: string, intent: SearchIntent, provis
   const safeLocation = location.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
   
   // Custom URL logic using extracted ID if available
+  const radiusQuery = radius > 0 ? `r${radius}` : '';
   const url = locId 
-    ? `https://www.kleinanzeigen.de/s-${categoryPath}/${safeLocation}/${categoryId}l${locId}`
-    : `https://www.kleinanzeigen.de/s-${categoryPath}/${safeLocation}/${categoryId}`;
+    ? `https://www.kleinanzeigen.de/s-${categoryPath}/${safeLocation}/${categoryId}l${locId}${radiusQuery}`
+    : `https://www.kleinanzeigen.de/s-${categoryPath}/${safeLocation}/${categoryId}${radiusQuery}`;
 
   try {
     const response = await fetch(url, {
@@ -205,6 +206,7 @@ export async function GET(request: Request) {
   const locationsParam = searchParams.get('locations') || '';
   const intent = searchParams.get('intent') as SearchIntent || 'rent';
   const provisionsfrei = searchParams.get('provisionsfrei') === 'true';
+  const radius = parseInt(searchParams.get('radius') || '10', 10);
   
   if (!locationsParam) {
     return NextResponse.json({ error: 'Locations parameter is required' }, { status: 400 });
@@ -217,7 +219,7 @@ export async function GET(request: Request) {
     const promises: Promise<Property[]>[] = [];
     
     locations.forEach(loc => {
-      promises.push(fetchKleinanzeigen(loc, intent, provisionsfrei));
+      promises.push(fetchKleinanzeigen(loc, intent, provisionsfrei, radius));
       promises.push(fetchImmowelt(loc, intent, provisionsfrei));
       // Injects 1 mock per region for immoscout
       promises.push(Promise.resolve(generateMockImmoscout(loc, intent))); 

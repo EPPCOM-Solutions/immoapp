@@ -18,7 +18,13 @@ export const SearchSettingsDialog: React.FC<Props> = ({ settings, setSettings, o
   const [newLocation, setNewLocation] = useState('');
 
   const handleSave = () => {
-    setSettings(localSettings);
+    let finalLocations = [...localSettings.locations];
+    const loc = newLocation.trim();
+    if (loc && finalLocations.length < 3 && !finalLocations.includes(loc)) {
+      finalLocations.push(loc);
+    }
+    
+    setSettings({ ...localSettings, locations: finalLocations });
     onClose();
   };
 

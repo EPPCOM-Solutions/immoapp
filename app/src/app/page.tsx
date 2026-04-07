@@ -54,7 +54,8 @@ export default function Home() {
       
       try {
         const locationsQuery = encodeURIComponent(settings.locations.join(','));
-        const res = await fetch(`/api/properties?locations=${locationsQuery}&intent=${settings.intent}&provisionsfrei=${settings.provisionsfrei ? 'true' : 'false'}`);
+        const radiusConfig = settings.radius || 10;
+        const res = await fetch(`/api/properties?locations=${locationsQuery}&intent=${settings.intent}&provisionsfrei=${settings.provisionsfrei ? 'true' : 'false'}&radius=${radiusConfig}`);
         if (!res.ok) {
            throw new Error(await res.text());
         }
