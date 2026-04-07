@@ -220,8 +220,8 @@ def _get_llm():
         model=OLLAMA_MODEL,
         api_key="ollama",
         base_url=OLLAMA_BASE_URL,
-        max_tokens=100,     # ~2-3 Sätze Voice-Antwort
-        temperature=0.4,    # Fokussiert, wenig Halluzination
+        max_completion_tokens=100,  # ~2-3 Sätze Voice-Antwort
+        temperature=0.4,
     )
 
 
@@ -302,19 +302,17 @@ class NexoStreamingAgent(Agent):
         """RAG-augmented LLM node with qwen3 think-tag stripping."""
         user_query = self._get_last_user_query(chat_ctx)
 
-        # Inject RAG context if available
+        # Inject RAG context into system message
         if user_query:
             rag_context = await fetch_rag_context(user_query)
             if rag_context:
                 try:
                     ctx_copy = chat_ctx.copy()
-                    for i, msg in enumerate(ctx_copy.messages()):
-                        if msg.role == "system":
-                            from livekit.agents import llm as _llm
-                            ctx_copy._messages[i] = _llm.ChatMessage(
-                                role="system",
-                                content=SYSTEM_PROMPT + f"\n\nRELEVANTES WISSEN:\n{rag_context}"
-                            )
+                    for i, item in enumerate(ctx_copy._items):
+                        if item.role == "system":
+                            ctx_copy._items[i] = item.model_copy(update={
+                                "content": [SYSTEM_PROMPT + f"\n\nRELEVANTES WISSEN:\n{rag_context}"]
+                            })
                             chat_ctx = ctx_copy
                             logger.info(f"RAG injected: {len(rag_context)} chars")
                             break
@@ -348,7 +346,7 @@ async def entrypoint(ctx: JobContext):
     logger.info(f"Using {agent_class.__name__}")
     agent = agent_class(instructions=SYSTEM_PROMPT)
 
-    # ─── Filler-Meldungen (überbrückt LLM-Denkzeit) ──────────────────────
+    # ─── Filler-Meldungen ──────────────────────────────────────────────────
     FILLER_PHRASES = [
         "Einen Moment bitte.",
         "Ich schaue kurz nach.",
@@ -356,9 +354,9 @@ async def entrypoint(ctx: JobContext):
         "Ich überlege kurz.",
     ]
     _filler_index = 0
+    _greeting_done = False  # Filler erst spielen wenn Begrüßung abgeschlossen
 
     async def _publish_data(payload: dict):
-        """Send JSON data message to all participants (for chat UI)."""
         try:
             import json
             data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -369,18 +367,18 @@ async def entrypoint(ctx: JobContext):
     @session.on("user_speech_committed")
     def _on_user_speech(ev):
         nonlocal _filler_index
-        # Publish user transcript to chat UI
         text = getattr(ev, "transcript", None) or getattr(ev, "text", None) or ""
         if text:
             asyncio.ensure_future(_publish_data({"type": "user_speech", "text": text}))
-        # Filler phrase while LLM is thinking
+        # Filler nur nach Begrüßung spielen
+        if not _greeting_done:
+            return
         phrase = FILLER_PHRASES[_filler_index % len(FILLER_PHRASES)]
         _filler_index += 1
         asyncio.ensure_future(session.say(phrase, allow_interruptions=True))
 
     @session.on("agent_speech_committed")
     def _on_agent_speech(ev):
-        # Publish agent response to chat UI
         text = getattr(ev, "transcript", None) or getattr(ev, "text", None) or ""
         if text:
             asyncio.ensure_future(_publish_data({"type": "agent_speech", "text": text}))
@@ -388,9 +386,11 @@ async def entrypoint(ctx: JobContext):
     await session.start(room=ctx.room, agent=agent)
     logger.info("Agent started and listening")
 
-    greeting = "Hallo! Ich bin Nexo, der KI-Assistent von Eppkom Solutions. Wie heißt du?"
-    await session.say(greeting)
+    # Begrüßung — nicht unterbrechbar, fragt nach Name
+    greeting = "Hallo! Ich bin Nexo, der KI-Assistent von Eppkom Solutions. Mit wem habe ich das Vergnügen, wie heißt du?"
+    await session.say(greeting, allow_interruptions=False)
     await _publish_data({"type": "agent_speech", "text": greeting})
+    _greeting_done = True
 
     await asyncio.Event().wait()
 
