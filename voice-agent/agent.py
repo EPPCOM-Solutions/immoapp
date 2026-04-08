@@ -44,7 +44,9 @@ WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
 
 # LLM Configuration (Ollama local)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://10.0.0.3:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3-voice:latest")  # 1.2s warm, bestes Deutsch
+# qwen3-nothink: kein <think>-Tag → TTS startet sofort, ~500ms schneller
+_raw_model = os.getenv("OLLAMA_MODEL", "qwen3-nothink:latest")
+OLLAMA_MODEL = "qwen3-nothink:latest" if _raw_model == "qwen3-voice:latest" else _raw_model
 
 # TTS Configuration (Cartesia Primary - Ultra-Low Latency)
 CARTESIA_API_KEY = os.getenv("CARTESIA_API_KEY", "")
@@ -101,7 +103,7 @@ async def fetch_rag_context(query: str) -> Optional[str]:
         return _rag_cache[query_hash]
 
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with httpx.AsyncClient(timeout=1.5) as client:
             response = await client.post(RAG_WEBHOOK_URL, json={
                 "tenant_id": RAG_TENANT_ID,
                 "query": query,
@@ -122,7 +124,7 @@ async def fetch_rag_context(query: str) -> Optional[str]:
             logger.debug(f"RAG: no answer in response keys: {list(data.keys())}")
             return None
     except asyncio.TimeoutError:
-        logger.warning("RAG timeout (3.0s) — proceeding without context")
+        logger.warning("RAG timeout (1.5s) — proceeding without context")
         return None
     except Exception as e:
         logger.warning(f"RAG fetch failed: {e}")
@@ -346,16 +348,6 @@ async def entrypoint(ctx: JobContext):
     logger.info(f"Using {agent_class.__name__}")
     agent = agent_class(instructions=SYSTEM_PROMPT)
 
-    # ─── Filler-Meldungen ──────────────────────────────────────────────────
-    FILLER_PHRASES = [
-        "Einen Moment bitte.",
-        "Ich schaue kurz nach.",
-        "Einen Augenblick.",
-        "Ich überlege kurz.",
-    ]
-    _filler_index = 0
-    _greeting_done = False  # Filler erst spielen wenn Begrüßung abgeschlossen
-
     async def _publish_data(payload: dict):
         try:
             import json
@@ -366,16 +358,9 @@ async def entrypoint(ctx: JobContext):
 
     @session.on("user_speech_committed")
     def _on_user_speech(ev):
-        nonlocal _filler_index
         text = getattr(ev, "transcript", None) or getattr(ev, "text", None) or ""
         if text:
             asyncio.ensure_future(_publish_data({"type": "user_speech", "text": text}))
-        # Filler nur nach Begrüßung spielen
-        if not _greeting_done:
-            return
-        phrase = FILLER_PHRASES[_filler_index % len(FILLER_PHRASES)]
-        _filler_index += 1
-        asyncio.ensure_future(session.say(phrase, allow_interruptions=True))
 
     @session.on("agent_speech_committed")
     def _on_agent_speech(ev):
@@ -390,7 +375,6 @@ async def entrypoint(ctx: JobContext):
     greeting = "Hallo! Ich bin Nexo, der KI-Assistent von Eppkom Solutions. Mit wem habe ich das Vergnügen, wie heißt du?"
     await session.say(greeting, allow_interruptions=False)
     await _publish_data({"type": "agent_speech", "text": greeting})
-    _greeting_done = True
 
     await asyncio.Event().wait()
 
