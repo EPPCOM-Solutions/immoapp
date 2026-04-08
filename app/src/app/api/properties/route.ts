@@ -226,20 +226,20 @@ function generateMockImmoscout(location: string, intent: SearchIntent, propertyT
   }];
 }
 
-function generateMockImmonet(location: string, intent: SearchIntent, propertyType: string): Property[] {
-  // Mock für Immonet (da starker Bot-Schutz)
+function generateMockImmobilo(location: string, intent: SearchIntent, propertyType: string): Property[] {
+  // Mock für Immobilo
   const price = intent === 'rent' ? Math.floor(Math.random() * 900) + 500 : Math.floor(Math.random() * 400000) + 150000;
-  const immonetIntent = intent === 'rent' ? 'miete' : 'kauf';
+  const immobiloIntent = intent === 'rent' ? 'mieten' : 'kaufen';
   return [{
-     id: `imonet-${Math.random()}`,
-     title: `(Immonet) Schöne Immobilie in ${location}`,
+     id: `immobilo-${Math.random()}`,
+     title: `(Immobilo) Schöne Immobilie in ${location}`,
      address: `${location} Umgebung`,
      price: price,
      rooms: 2.5,
      livingSpace: 65,
      imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000&auto=format&fit=crop',
-     url: `https://www.immonet.de/immobiliensuche/sel.do?&city=${encodeURIComponent(location)}&marketingtype=${immonetIntent}`,
-     source: 'Immonet',
+     url: `https://www.immobilo.de/${propertyType}-${immobiloIntent}/${encodeURIComponent(location)}`,
+     source: 'Immobilo',
      competitionScore: 6,
      priceTrend: 'steady'
   }];
@@ -283,7 +283,7 @@ export async function GET(request: Request) {
 
   const locations = locationsParam.split(',').map(l => l.trim()).filter(Boolean);
   const portalsRaw = portalsParam ? portalsParam.split(',').map(p => p.trim()).filter(Boolean) : [];
-  const portals = portalsRaw.length > 0 ? portalsRaw : ['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immonet', 'Regional']; // default all
+  const portals = portalsRaw.length > 0 ? portalsRaw : ['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immobilo', 'Regional']; // default all
   
   try {
     // Run all scrapes concurrently based on selected portals
@@ -299,8 +299,8 @@ export async function GET(request: Request) {
       if (portals.includes('ImmoScout24')) {
         promises.push(Promise.resolve(generateMockImmoscout(loc, intent, propertyType))); 
       }
-      if (portals.includes('Immonet')) {
-        promises.push(Promise.resolve(generateMockImmonet(loc, intent, propertyType)));
+      if (portals.includes('Immobilo')) {
+        promises.push(Promise.resolve(generateMockImmobilo(loc, intent, propertyType)));
       }
       if (portals.includes('Regional')) {
         promises.push(Promise.resolve(generateMockRegional(loc, intent, propertyType)));

@@ -129,18 +129,11 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
       <div className="relative w-full h-full rounded-3xl overflow-hidden glass shadow-2xl border border-slate-700/50">
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/40 to-transparent z-10" />
         
-        {/* Source Badge Link */}
-        {property.url ? (
-          <a href={property.url} target="_blank" rel="noopener noreferrer" className="absolute top-4 right-4 z-40 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md text-[10px] uppercase font-bold tracking-wider text-emerald-400 border border-emerald-500/30 flex items-center gap-1 hover:bg-emerald-900/50 transition-colors cursor-pointer">
-            <ExternalLink className="w-3 h-3" />
-            {property.source}
-          </a>
-        ) : (
-          <div className="absolute top-4 right-4 z-40 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md text-[10px] uppercase font-bold tracking-wider text-slate-400 border border-slate-700 flex items-center gap-1">
-            <ExternalLink className="w-3 h-3" />
-            {property.source}
-          </div>
-        )}
+        {/* Top Right Source Badge (Non-clickable, just info) */}
+        <div className="absolute top-4 right-4 z-40 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md text-[10px] uppercase font-bold tracking-wider text-slate-400 border border-slate-700 flex items-center gap-1">
+          {property.source}
+        </div>
+
 
         <img src={images[imageIndex]} alt={property.title} className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300" draggable={false} />
         
@@ -205,6 +198,12 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
           </div>
 
           {renderRenditeAmpel()}
+
+          {property.url && (
+            <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 mt-4 px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-emerald-400 rounded-xl font-bold transition-all shadow-lg w-full z-50 relative pointer-events-auto">
+              <ExternalLink className="w-4 h-4" /> Originalanzeige öffnen
+            </a>
+          )}
         </div>
       </div>
     </motion.div>

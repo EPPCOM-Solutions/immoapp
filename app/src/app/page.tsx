@@ -36,7 +36,7 @@ export default function Home() {
     minSpace: 50,
     radius: 10,
     provisionsfrei: false,
-    activePortals: ['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immonet', 'Regional']
+    activePortals: ['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immobilo', 'Regional']
   });
 
   const [isLoading, setIsLoading] = useState(false);

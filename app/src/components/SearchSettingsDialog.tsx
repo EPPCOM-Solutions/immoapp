@@ -202,7 +202,7 @@ export const SearchSettingsDialog: React.FC<Props> = ({ settings, setSettings, o
         <div className="border-t border-slate-700/50 pt-5 mt-2">
            <label className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-3 block">Aktive Portale</label>
            <div className="grid grid-cols-2 gap-3">
-             {['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immonet', 'Regional'].map((portal) => {
+             {['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immobilo', 'Regional'].map((portal) => {
                 const isActive = localSettings.activePortals?.includes(portal);
                 const togglePortal = () => {
                   const current = localSettings.activePortals || [];
