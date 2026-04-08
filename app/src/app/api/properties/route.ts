@@ -21,16 +21,16 @@ async function getKleinanzeigenLocationId(location: string): Promise<string | nu
   return null;
 }
 
-async function fetchKleinanzeigen(location: string, intent: SearchIntent, provisionsfrei: boolean, radius: number): Promise<Property[]> {
-  // Für MVP: Wir suchen Wohnungen zur Miete oder Kauf. Kapitalanlage sucht primär Häuser/Wohnungen.
+async function fetchKleinanzeigen(location: string, intent: SearchIntent, propertyType: string, provisionsfrei: boolean, radius: number): Promise<Property[]> {
   let categoryPath = 'wohnung-mieten';
   let categoryId = 'c203';
-  if (intent === 'buy') {
-    categoryPath = 'wohnung-kaufen';
-    categoryId = 'c196'; // c196 is Wohnung Kaufen, c208 is Haus Kaufen. We use Wohnung as default.
-  } else if (intent === 'investment') {
-    categoryPath = 'haus-kaufen';
-    categoryId = 'c208';
+  if (intent === 'rent') {
+    if (propertyType === 'haus') { categoryPath = 'haus-mieten'; categoryId = 'c205'; }
+    else if (propertyType === 'grundstueck') { categoryPath = 'grundstuecke'; categoryId = 'c207'; }
+  } else if (intent === 'buy' || intent === 'investment') {
+    if (propertyType === 'haus') { categoryPath = 'haus-kaufen'; categoryId = 'c208'; }
+    else if (propertyType === 'grundstueck') { categoryPath = 'grundstuecke'; categoryId = 'c207'; }
+    else { categoryPath = 'wohnung-kaufen'; categoryId = 'c196'; }
   }
 
   const locId = await getKleinanzeigenLocationId(location);
@@ -138,10 +138,18 @@ async function fetchKleinanzeigen(location: string, intent: SearchIntent, provis
   }
 }
 
-async function fetchImmowelt(location: string, intent: SearchIntent, provisionsfrei: boolean): Promise<Property[]> {
+async function fetchImmowelt(location: string, intent: SearchIntent, propertyType: string, provisionsfrei: boolean): Promise<Property[]> {
   try {
     const slug = location.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    const type = intent === 'rent' ? 'wohnungen/mieten' : 'haeuser/kaufen';
+    let type = 'wohnungen/mieten';
+    if (intent === 'rent') {
+      if (propertyType === 'haus') type = 'haeuser/mieten';
+      else if (propertyType === 'grundstueck') type = 'grundstuecke/mieten';
+    } else {
+      if (propertyType === 'haus') type = 'haeuser/kaufen';
+      else if (propertyType === 'grundstueck') type = 'grundstuecke/kaufen';
+      else type = 'wohnungen/kaufen';
+    }
     const url = `https://www.immowelt.de/suche/${slug}/${type}`;
     
     const response = await fetch(url, {
@@ -178,7 +186,7 @@ async function fetchImmowelt(location: string, intent: SearchIntent, provisionsf
       if (title && price > 0) {
         properties.push({
           id: `iw-${Math.random()}`,
-          title, address: location, price, rooms, livingSpace, imageUrl, url: adUrl,
+          title, address: location, price, rooms, livingSpace, imageUrl, url: adUrl || url,
           source: 'Immowelt', competitionScore: 8, priceTrend: 'steady'
         });
       }
@@ -191,9 +199,18 @@ async function fetchImmowelt(location: string, intent: SearchIntent, provisionsf
   }
 }
 
-function generateMockImmoscout(location: string, intent: SearchIntent): Property[] {
+function generateMockImmoscout(location: string, intent: SearchIntent, propertyType: string): Property[] {
   // ImmoScout24 STRICTLY blocks fetch with 401. So we mock 1-2 entries to show multi-portal working.
   const price = intent === 'rent' ? Math.floor(Math.random() * 800) + 400 : Math.floor(Math.random() * 500000) + 100000;
+  let is24Intent = 'wohnung-mieten';
+  if (intent === 'rent') {
+    if (propertyType === 'haus') is24Intent = 'haus-mieten';
+    else if (propertyType === 'grundstueck') is24Intent = 'grundstueck-mieten';
+  } else {
+    if (propertyType === 'haus') is24Intent = 'haus-kaufen';
+    else if (propertyType === 'grundstueck') is24Intent = 'grundstueck-kaufen';
+    else is24Intent = 'wohnung-kaufen';
+  }
   return [{
      id: `is24-${Math.random()}`,
      title: `(ImmoScout Mock) Traumhafte Immobilie in ${location}`,
@@ -202,16 +219,17 @@ function generateMockImmoscout(location: string, intent: SearchIntent): Property
      rooms: 3,
      livingSpace: 75,
      imageUrl: 'https://images.unsplash.com/photo-1502672260266-1c1e52b154ce?q=80&w=1000&auto=format&fit=crop',
-     url: 'https://www.immobilienscout24.de/',
-     source: 'ImmoScout24',
+     url: `https://www.immobilienscout24.de/`,
+     source: 'ImmoScout24 (Mock)',
      competitionScore: 9,
      priceTrend: 'hot'
   }];
 }
 
-function generateMockImmonet(location: string, intent: SearchIntent): Property[] {
+function generateMockImmonet(location: string, intent: SearchIntent, propertyType: string): Property[] {
   // Mock für Immonet (da starker Bot-Schutz)
   const price = intent === 'rent' ? Math.floor(Math.random() * 900) + 500 : Math.floor(Math.random() * 400000) + 150000;
+  const immonetIntent = intent === 'rent' ? 'miete' : 'kauf';
   return [{
      id: `imonet-${Math.random()}`,
      title: `(Immonet) Schöne Immobilie in ${location}`,
@@ -220,19 +238,20 @@ function generateMockImmonet(location: string, intent: SearchIntent): Property[]
      rooms: 2.5,
      livingSpace: 65,
      imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000&auto=format&fit=crop',
-     url: 'https://www.immonet.de/',
+     url: `https://www.immonet.de/immobiliensuche/sel.do?&city=${encodeURIComponent(location)}&marketingtype=${immonetIntent}`,
      source: 'Immonet',
      competitionScore: 6,
      priceTrend: 'steady'
   }];
 }
 
-function generateMockRegional(location: string, intent: SearchIntent): Property[] {
+function generateMockRegional(location: string, intent: SearchIntent, propertyType: string): Property[] {
   // Lokales dynamisches Portal Mock
   const portalName = location.toLowerCase().includes('stuttgart') ? 'Stuttgarter Nachrichten' 
     : location.toLowerCase().includes('münchen') ? 'Münchener Merkur'
     : `Lokalportal ${location}`;
     
+  const searchName = portalName.toLowerCase().replace(/[^a-z0-9]/g, '');
   const price = intent === 'rent' ? Math.floor(Math.random() * 700) + 400 : Math.floor(Math.random() * 300000) + 100000;
   return [{
      id: `regio-${Math.random()}`,
@@ -242,7 +261,7 @@ function generateMockRegional(location: string, intent: SearchIntent): Property[
      rooms: 4,
      livingSpace: 90,
      imageUrl: 'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1000&auto=format&fit=crop',
-     url: 'https://www.google.com/search?q=Immobilien+' + encodeURIComponent(location),
+     url: `https://www.${searchName}.de/immobilien/suche?q=${encodeURIComponent(location)}`,
      source: portalName,
      competitionScore: 3, // Regional has less competition
      priceTrend: 'new'
@@ -254,6 +273,7 @@ export async function GET(request: Request) {
   const locationsParam = searchParams.get('locations') || '';
   const portalsParam = searchParams.get('portals') || '';
   const intent = searchParams.get('intent') as SearchIntent || 'rent';
+  const propertyType = searchParams.get('propertyType') || 'wohnung';
   const provisionsfrei = searchParams.get('provisionsfrei') === 'true';
   const radius = parseInt(searchParams.get('radius') || '10', 10);
   
@@ -271,19 +291,19 @@ export async function GET(request: Request) {
     
     locations.forEach(loc => {
       if (portals.includes('Kleinanzeigen')) {
-        promises.push(fetchKleinanzeigen(loc, intent, provisionsfrei, radius));
+        promises.push(fetchKleinanzeigen(loc, intent, propertyType, provisionsfrei, radius));
       }
       if (portals.includes('Immowelt')) {
-        promises.push(fetchImmowelt(loc, intent, provisionsfrei));
+        promises.push(fetchImmowelt(loc, intent, propertyType, provisionsfrei));
       }
       if (portals.includes('ImmoScout24')) {
-        promises.push(Promise.resolve(generateMockImmoscout(loc, intent))); 
+        promises.push(Promise.resolve(generateMockImmoscout(loc, intent, propertyType))); 
       }
       if (portals.includes('Immonet')) {
-        promises.push(Promise.resolve(generateMockImmonet(loc, intent)));
+        promises.push(Promise.resolve(generateMockImmonet(loc, intent, propertyType)));
       }
       if (portals.includes('Regional')) {
-        promises.push(Promise.resolve(generateMockRegional(loc, intent)));
+        promises.push(Promise.resolve(generateMockRegional(loc, intent, propertyType)));
       }
     });
 

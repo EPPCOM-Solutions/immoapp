@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { SearchSettings, SearchIntent } from '../types/property';
+import { SearchSettings, SearchIntent, PropertyType } from '../types/property';
 import { Settings, X, Info, Save } from 'lucide-react';
 
 interface Props {
@@ -71,6 +71,24 @@ export const SearchSettingsDialog: React.FC<Props> = ({ settings, setSettings, o
                 {intent === 'rent' ? 'Zur Miete' : intent === 'buy' ? 'Kauf (Selbst)' : 'Kapitalanlage'}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-3 block">Objektart</label>
+          <div className="grid grid-cols-3 gap-2">
+            {(['wohnung', 'haus', 'grundstueck'] as PropertyType[]).map(ptype => {
+              const isActive = (localSettings.propertyType || 'wohnung') === ptype;
+              return (
+                 <button
+                   key={ptype}
+                   onClick={() => setLocalSettings({...localSettings, propertyType: ptype})}
+                   className={`p-3 rounded-xl text-sm font-semibold transition-all border ${isActive ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-slate-800/50 text-slate-300 border-slate-700 hover:bg-slate-700'}`}
+                 >
+                   {ptype === 'wohnung' ? 'Wohnung' : ptype === 'haus' ? 'Haus' : 'Grundstück'}
+                 </button>
+              );
+            })}
           </div>
         </div>
 

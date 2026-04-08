@@ -1,4 +1,5 @@
 export type SearchIntent = 'rent' | 'buy' | 'investment';
+export type PropertyType = 'wohnung' | 'haus' | 'grundstueck';
 
 export interface Property {
   id: string;
@@ -33,6 +34,7 @@ export interface UserProfile {
 
 export interface SearchSettings {
   intent: SearchIntent;
+  propertyType?: PropertyType;
   locations: string[]; // Up to 3 locations
   maxPrice: number;
   minRooms: number;

@@ -29,6 +29,7 @@ export default function Home() {
   });
   const [settings, setSettings] = useLocalStorage<SearchSettings>('immo_settings', {
     intent: 'rent',
+    propertyType: 'wohnung',
     locations: [],
     maxPrice: 2000,
     minRooms: 2,
@@ -57,7 +58,8 @@ export default function Home() {
         const locationsQuery = encodeURIComponent(settings.locations.join(','));
         const portalsQuery = encodeURIComponent((settings.activePortals || []).join(','));
         const radiusConfig = settings.radius || 10;
-        const res = await fetch(`/api/properties?locations=${locationsQuery}&portals=${portalsQuery}&intent=${settings.intent}&provisionsfrei=${settings.provisionsfrei ? 'true' : 'false'}&radius=${radiusConfig}`);
+        const pType = settings.propertyType || 'wohnung';
+        const res = await fetch(`/api/properties?locations=${locationsQuery}&portals=${portalsQuery}&intent=${settings.intent}&propertyType=${pType}&provisionsfrei=${settings.provisionsfrei ? 'true' : 'false'}&radius=${radiusConfig}`);
         if (!res.ok) {
            throw new Error(await res.text());
         }
@@ -108,6 +110,29 @@ export default function Home() {
 
     fetchLiveProperties();
   }, [settings]);
+
+  // Purge old broken links from localStorage that might be cached from earlier iterations
+  useEffect(() => {
+    const hasBrokenLinks = savedProperties.some(p => 
+      !p.url || 
+      p.url.includes('google.com/search') || 
+      p.url.includes('immobilienscout24.de/Suche/radius')
+    );
+    
+    if (hasBrokenLinks) {
+      setSavedProperties(savedProperties.map(p => {
+        if (!p.url) return p;
+        if (p.url.includes('google.com/search')) {
+           const searchName = p.source.toLowerCase().replace(/[^a-z0-9]/g, '');
+           return { ...p, url: `https://www.${searchName}.de/immobilien/suche?q=${encodeURIComponent(p.address)}` };
+        }
+        if (p.url.includes('immobilienscout24.de/Suche/radius')) {
+           return { ...p, url: 'https://www.immobilienscout24.de/' };
+        }
+        return p;
+      }));
+    }
+  }, [savedProperties, setSavedProperties]);
 
   const handleSwipe = (id: string, direction: 'left' | 'right') => {
     if (direction === 'right') {
@@ -328,7 +353,7 @@ export default function Home() {
       {currentTab === 'discover' && (
         <div className="px-8 pb-4 flex justify-between items-center z-40">
           <div className="flex flex-col">
-            <img src="https://www.eppcom.de/assets/images/Logo.webp" alt="EPPCOM" className="h-4 object-contain mb-1 self-start opacity-70" />
+            <img src="https://www.eppcom.de/assets/images/Logo.webp" alt="EPPCOM" className="h-7 object-contain mb-1.5 self-start opacity-90" />
             <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 uppercase tracking-widest leading-none">
               Immo<span className="text-white">Pulse</span>
             </h1>
