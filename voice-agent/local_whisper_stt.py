@@ -77,16 +77,29 @@ class LocalWhisperSTT(STT):
                 alternatives=[SpeechData(language="de", text="", confidence=0.0)],
             )
 
+    # Bekannte Whisper-Halluzinationen die gefiltert werden sollen
+    _HALLUCINATION_BLOCKLIST = {
+        "Untertitel", "Untertitelung", "Vielen Dank", "Tschüss", "Auf Wiedersehen",
+        "Thank you", "Thanks", "Subtitles", "Subtitle", "MBC", "SRT",
+        "Danke fürs Zuschauen", "Bis zum nächsten Mal",
+    }
+
     def _transcribe_sync(self, audio_array):
         segments, info = self._whisper.transcribe(
             audio_array,
             language="de",
-            beam_size=5,
+            beam_size=2,                     # Kompromiss Speed/Qualität
             vad_filter=True,
-            no_speech_threshold=0.7,        # discard low-speech segments
-            log_prob_threshold=-1.0,         # discard low-confidence output
-            compression_ratio_threshold=2.4, # filter repetitive/garbage text
-            condition_on_previous_text=False, # prevent cascading hallucinations
-            temperature=0.0,                 # deterministic, fewer hallucinations
+            no_speech_threshold=0.7,
+            log_prob_threshold=-1.0,
+            compression_ratio_threshold=2.4,
+            condition_on_previous_text=False,
+            temperature=0.0,
         )
-        return list(segments), info
+        segs = list(segments)
+        # Filter bekannte Halluzinationen
+        filtered = [
+            s for s in segs
+            if not any(h.lower() in s.text.lower() for h in self._HALLUCINATION_BLOCKLIST)
+        ]
+        return filtered, info
