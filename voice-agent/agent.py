@@ -39,7 +39,9 @@ DEEPGRAM_MODEL = os.getenv("DEEPGRAM_MODEL", "nova-2")
 
 # Local Whisper Configuration (self-hosted, zero-cost)
 USE_LOCAL_WHISPER = os.getenv("USE_LOCAL_WHISPER", "true").lower() == "true"
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")   # small = beste Genauigkeit/Speed Balance auf CPU
+_raw_whisper = os.getenv("WHISPER_MODEL", "small")
+# tiny halluziniert massiv bei schlechtem Audio → Minimum: small
+WHISPER_MODEL = "small" if _raw_whisper == "tiny" else _raw_whisper
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
 
 # LLM Configuration (Ollama local)

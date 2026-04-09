@@ -81,7 +81,12 @@ class LocalWhisperSTT(STT):
         segments, info = self._whisper.transcribe(
             audio_array,
             language="de",
-            beam_size=1,       # beam_size=1 is 3-5x faster on CPU
-            vad_filter=True,   # skip silence segments for speed
+            beam_size=5,
+            vad_filter=True,
+            no_speech_threshold=0.7,        # discard low-speech segments
+            log_prob_threshold=-1.0,         # discard low-confidence output
+            compression_ratio_threshold=2.4, # filter repetitive/garbage text
+            condition_on_previous_text=False, # prevent cascading hallucinations
+            temperature=0.0,                 # deterministic, fewer hallucinations
         )
         return list(segments), info
