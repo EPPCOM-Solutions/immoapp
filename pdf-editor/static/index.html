@@ -1,1 +1,379 @@
-<!DOCTYPE html><html><body>Loading...</body></html>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Scan Editor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #1a1a2e; color: #eee; min-height: 100vh; }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 8px 16px; background: #16213e;
+      border-bottom: 1px solid #0f3460; position: sticky; top: 0; z-index: 20;
+    }
+    #toolbar button {
+      padding: 6px 14px; background: #0f3460; color: #eee;
+      border: 1px solid #1a4080; border-radius: 5px; cursor: pointer;
+      font-size: 13px; transition: background 0.15s;
+    }
+    #toolbar button:hover:not(:disabled) { background: #e94560; border-color: #e94560; }
+    #toolbar button:disabled { opacity: 0.35; cursor: default; }
+    #page-info { font-size: 13px; color: #aaa; min-width: 80px; text-align: center; }
+    #status { font-size: 12px; color: #6dbf6d; margin-left: auto; }
+
+    /* ── Canvas area ── */
+    #canvas-wrapper {
+      display: flex; justify-content: center;
+      padding: 28px 16px; overflow: auto; min-height: calc(100vh - 50px);
+    }
+    #page-container { position: relative; display: none; box-shadow: 0 6px 32px rgba(0,0,0,0.6); }
+    #page-img { display: block; max-width: 100%; }
+
+    /* ── OCR block overlays ── */
+    .ocr-block {
+      position: absolute; cursor: text; pointer-events: all;
+      border: 1px solid transparent;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .ocr-block:hover {
+      background: rgba(100,160,255,0.18);
+      border-color: rgba(100,160,255,0.7);
+    }
+    .ocr-block.edited {
+      border-color: rgba(80,220,80,0.6);
+      background: rgba(80,220,80,0.08);
+    }
+
+    /* ── Edit overlay ── */
+    #edit-overlay { position: absolute; display: none; z-index: 10; }
+    #edit-textarea {
+      width: 100%; min-height: 48px; background: rgba(255,255,220,0.97);
+      color: #111; border: 2px solid #e94560; padding: 5px 6px;
+      resize: vertical; font-family: monospace; font-size: 13px;
+      border-radius: 3px 3px 0 0;
+    }
+    #edit-actions { display: flex; gap: 5px; }
+    #edit-actions button {
+      flex: 1; padding: 5px 0; border: none; border-radius: 0 0 3px 3px;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+    }
+    #btn-save-block  { background: #27ae60; color: #fff; }
+    #btn-cancel-block { background: #555; color: #ddd; }
+    #btn-save-block:hover  { background: #1e8449; }
+    #btn-cancel-block:hover { background: #333; }
+
+    /* ── Legal modal ── */
+    #legal-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    #legal-modal.active { display: flex; }
+    #legal-box {
+      background: #fffbe6; color: #222; border: 2px solid #f0ad4e;
+      border-radius: 10px; padding: 28px 24px; max-width: 480px; width: 92%;
+    }
+    #legal-box h3 { color: #c87f0a; margin-bottom: 14px; font-size: 16px; }
+    #legal-box p { line-height: 1.65; font-size: 14px; margin-bottom: 20px; }
+    #btn-understood {
+      background: #f0ad4e; color: #333; border: none; border-radius: 5px;
+      padding: 10px 0; font-size: 14px; font-weight: 700;
+      cursor: pointer; width: 100%; transition: background 0.15s;
+    }
+    #btn-understood:hover { background: #d68910; color: #fff; }
+
+    /* ── Loading overlay ── */
+    #loading {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    #loading.active { display: flex; }
+    #loading-box {
+      background: #16213e; border: 1px solid #0f3460;
+      padding: 20px 36px; border-radius: 8px; font-size: 15px; color: #cce;
+    }
+
+    /* ── Empty state ── */
+    #empty-hint {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 60vh; color: #555; gap: 14px;
+    }
+    #empty-hint svg { opacity: 0.3; }
+    #empty-hint p { font-size: 15px; }
+  </style>
+</head>
+<body>
+
+<div id="toolbar">
+  <button id="btn-open">PDF öffnen</button>
+  <input type="file" id="file-input" accept=".pdf" style="display:none">
+  <button id="btn-prev" disabled>◀</button>
+  <span id="page-info">—</span>
+  <button id="btn-next" disabled>▶</button>
+  <button id="btn-export" disabled>PDF speichern</button>
+  <span id="status"></span>
+</div>
+
+<div id="canvas-wrapper">
+  <div id="page-container">
+    <img id="page-img" alt="PDF Seite">
+    <div id="ocr-overlay"></div>
+    <div id="edit-overlay">
+      <textarea id="edit-textarea" rows="3"></textarea>
+      <div id="edit-actions">
+        <button id="btn-save-block">Speichern</button>
+        <button id="btn-cancel-block">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+  <div id="empty-hint">
+    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>
+    <p>PDF öffnen um zu beginnen</p>
+  </div>
+</div>
+
+<div id="legal-modal">
+  <div id="legal-box">
+    <h3>⚠ Rechtlicher Hinweis</h3>
+    <p id="legal-text"></p>
+    <button id="btn-understood">Verstanden</button>
+  </div>
+</div>
+
+<div id="loading"><div id="loading-box">Bitte warten...</div></div>
+
+<script>
+  let sessionId = null;
+  let pageCount = 0;
+  let currentPage = 0;
+  let ocrBlocks = [];
+  let activeBlockIndex = null;
+  let pendingSave = null;  // {block, newText, blockIndex} awaiting legal confirmation
+
+  const $ = id => document.getElementById(id);
+
+  function setStatus(msg) { $('status').textContent = msg; }
+
+  function showLoading(msg) {
+    $('loading-box').textContent = msg || 'Bitte warten...';
+    $('loading').classList.add('active');
+  }
+  function hideLoading() { $('loading').classList.remove('active'); }
+
+  // ── File open ──
+  $('btn-open').onclick = () => $('file-input').click();
+
+  $('file-input').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    showLoading('PDF wird geladen...');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const data = await fetch('/upload', { method: 'POST', body: fd }).then(r => r.json());
+      sessionId = data.session_id;
+      pageCount = data.page_count;
+      $('empty-hint').style.display = 'none';
+      $('page-container').style.display = 'inline-block';
+      $('btn-export').disabled = false;
+      await loadPage(0);
+    } catch (err) {
+      alert('Fehler beim Laden: ' + err.message);
+    } finally {
+      hideLoading();
+      e.target.value = '';
+    }
+  };
+
+  // ── Page navigation ──
+  $('btn-prev').onclick = () => loadPage(currentPage - 1);
+  $('btn-next').onclick = () => loadPage(currentPage + 1);
+
+  async function loadPage(idx) {
+    currentPage = idx;
+    $('page-info').textContent = `Seite ${idx + 1} / ${pageCount}`;
+    $('btn-prev').disabled = idx === 0;
+    $('btn-next').disabled = idx >= pageCount - 1;
+    closeEditor();
+    $('ocr-overlay').innerHTML = '';
+    ocrBlocks = [];
+
+    const img = $('page-img');
+    img.src = `/page-image/${sessionId}/${idx}?t=${Date.now()}`;
+    await new Promise(r => { img.onload = r; });
+
+    showLoading('Text wird erkannt...');
+    try {
+      const data = await fetch(`/ocr/${sessionId}/${idx}`).then(r => r.json());
+      ocrBlocks = data.blocks;
+      renderOverlays();
+      setStatus(`${ocrBlocks.length} Textblöcke erkannt`);
+    } catch (err) {
+      setStatus('OCR fehlgeschlagen');
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // ── OCR overlays ──
+  function renderOverlays() {
+    const overlay = $('ocr-overlay');
+    overlay.innerHTML = '';
+    const img = $('page-img');
+    const scaleX = img.clientWidth / img.naturalWidth;
+    const scaleY = img.clientHeight / img.naturalHeight;
+
+    ocrBlocks.forEach((block, i) => {
+      const xs = block.bbox.map(p => p[0] * scaleX);
+      const ys = block.bbox.map(p => p[1] * scaleY);
+      const x = Math.min(...xs), y = Math.min(...ys);
+      const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+
+      const div = document.createElement('div');
+      div.className = 'ocr-block';
+      div.dataset.index = i;
+      Object.assign(div.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+      div.title = block.text;
+      div.onclick = (e) => { e.stopPropagation(); openEditor(i, div); };
+      overlay.appendChild(div);
+    });
+  }
+
+  // ── Editor ──
+  function openEditor(blockIndex, blockDiv) {
+    activeBlockIndex = blockIndex;
+    const ta = $('edit-textarea');
+    ta.value = ocrBlocks[blockIndex].text;
+
+    const eo = $('edit-overlay');
+    const top = parseInt(blockDiv.style.top) + parseInt(blockDiv.style.height) + 4;
+    Object.assign(eo.style, {
+      display: 'block',
+      left: blockDiv.style.left,
+      top: top + 'px',
+      width: Math.max(220, parseInt(blockDiv.style.width)) + 'px',
+    });
+    ta.style.height = 'auto';
+    ta.focus();
+    ta.select();
+  }
+
+  function closeEditor() {
+    $('edit-overlay').style.display = 'none';
+    activeBlockIndex = null;
+  }
+
+  $('btn-cancel-block').onclick = closeEditor;
+
+  // Click outside editor closes it
+  document.addEventListener('click', (e) => {
+    const eo = $('edit-overlay');
+    if (eo.style.display !== 'none' && !eo.contains(e.target) && !e.target.classList.contains('ocr-block')) {
+      closeEditor();
+    }
+  });
+
+  // ── Save block ──
+  $('btn-save-block').onclick = async () => {
+    if (activeBlockIndex === null) return;
+    const block = ocrBlocks[activeBlockIndex];
+    const newText = $('edit-textarea').value;
+    if (!newText.trim()) return;
+
+    const pageText = ocrBlocks.map(b => b.text).join(' ');
+    const legalData = await fetch('/legal-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_text: newText, page_text: pageText }),
+    }).then(r => r.json());
+
+    if (legalData.warning) {
+      $('legal-text').textContent = legalData.message;
+      $('legal-modal').classList.add('active');
+      pendingSave = { block, newText, blockIndex: activeBlockIndex };
+    } else {
+      await doSaveBlock(block, newText, activeBlockIndex);
+    }
+  };
+
+  $('btn-understood').onclick = async () => {
+    $('legal-modal').classList.remove('active');
+    if (pendingSave) {
+      const { block, newText, blockIndex } = pendingSave;
+      pendingSave = null;
+      await doSaveBlock(block, newText, blockIndex);
+    }
+  };
+
+  async function doSaveBlock(block, newText, blockIndex) {
+    showLoading('Text wird gerendert...');
+    try {
+      await fetch('/save-block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          page_index: currentPage,
+          block_index: blockIndex,
+          bbox: block.bbox,
+          angle: block.angle,
+          new_text: newText,
+        }),
+      });
+      ocrBlocks[blockIndex].text = newText;
+      // Reload image with cache-bust
+      const img = $('page-img');
+      img.src = `/page-image/${sessionId}/${currentPage}?t=${Date.now()}`;
+      await new Promise(r => { img.onload = r; });
+      // Re-render overlays (scale might shift with new img load)
+      renderOverlays();
+      // Mark edited
+      const div = $('ocr-overlay').querySelector(`[data-index="${blockIndex}"]`);
+      if (div) div.classList.add('edited');
+      closeEditor();
+      setStatus('Gespeichert ✓');
+    } catch (err) {
+      alert('Fehler: ' + err.message);
+    } finally {
+      hideLoading();
+    }
+  }
+
+  // ── Export ──
+  $('btn-export').onclick = async () => {
+    showLoading('PDF wird erstellt...');
+    try {
+      const res = await fetch(`/export/${sessionId}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'edited.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('PDF gespeichert ✓');
+    } catch (err) {
+      alert('Export fehlgeschlagen: ' + err.message);
+    } finally {
+      hideLoading();
+    }
+  };
+
+  // Re-render overlays on window resize
+  window.addEventListener('resize', () => { if (ocrBlocks.length) renderOverlays(); });
+</script>
+</body>
+</html>
