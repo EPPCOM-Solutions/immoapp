@@ -1,6 +1,7 @@
 # pdf-editor/app.py
 import asyncio
 import os
+import re
 import shutil
 import time
 import uuid
@@ -18,6 +19,11 @@ from legal_checker import check as legal_check_fn
 from ocr import run_ocr
 from renderer import patch_block
 
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    re.IGNORECASE,
+)
+
 _BASE_DIR = Path(__file__).parent
 
 SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", str(_BASE_DIR / "sessions")))
@@ -33,6 +39,8 @@ def _touch(session_id: str) -> None:
 
 
 def _get_session_dir(session_id: str) -> Path:
+    if not _UUID_RE.match(session_id):
+        raise HTTPException(400, "Invalid session_id")
     d = SESSIONS_DIR / session_id
     if not d.exists():
         raise HTTPException(404, "Session not found")
@@ -66,12 +74,16 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
+    content = await file.read()
+    if not content.startswith(b"%PDF"):
+        raise HTTPException(422, "File is not a valid PDF")
+
     session_id = str(uuid.uuid4())
     session_dir = SESSIONS_DIR / session_id
     session_dir.mkdir()
 
     pdf_path = session_dir / "original.pdf"
-    pdf_path.write_bytes(await file.read())
+    pdf_path.write_bytes(content)
 
     doc = fitz.open(str(pdf_path))
     page_count = len(doc)
@@ -116,7 +128,7 @@ class SaveBlockRequest(BaseModel):
     session_id: str
     page_index: int
     block_index: int
-    bbox: list
+    bbox: list[list[float]]
     angle: float
     new_text: str
 
@@ -159,16 +171,21 @@ def export_pdf(session_id: str):
         raise HTTPException(400, "No pages found")
 
     doc = fitz.open()
-    for png_path in pages:
-        img_doc = fitz.open(str(png_path))
-        pdf_bytes = img_doc.convert_to_pdf()
-        img_doc.close()
-        img_pdf = fitz.open("pdf", pdf_bytes)
-        doc.insert_pdf(img_pdf)
+    try:
+        for png_path in pages:
+            img_doc = fitz.open(str(png_path))
+            try:
+                pdf_bytes = img_doc.convert_to_pdf()
+            finally:
+                img_doc.close()
+            img_pdf = fitz.open("pdf", pdf_bytes)
+            doc.insert_pdf(img_pdf)
+            img_pdf.close()
 
-    out_path = d / "export.pdf"
-    doc.save(str(out_path))
-    doc.close()
+        out_path = d / "export.pdf"
+        doc.save(str(out_path))
+    finally:
+        doc.close()
     return FileResponse(
         str(out_path),
         media_type="application/pdf",

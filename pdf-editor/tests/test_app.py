@@ -56,7 +56,8 @@ def test_list_pages(client):
 
 
 def test_list_pages_invalid_session(client):
-    response = client.get("/pages/nonexistent-session")
+    # Use a valid UUID4 that doesn't exist
+    response = client.get("/pages/550e8400-e29b-41d4-a716-446655440000")
     assert response.status_code == 404
 
 
@@ -116,8 +117,9 @@ def test_save_block(client):
 
 
 def test_save_block_invalid_session(client):
+    # Use a valid UUID4 that doesn't exist
     response = client.post("/save-block", json={
-        "session_id": "invalid",
+        "session_id": "550e8400-e29b-41d4-a716-446655440000",
         "page_index": 0,
         "block_index": 0,
         "bbox": [[0,0],[10,0],[10,5],[0,5]],
@@ -149,3 +151,18 @@ def test_get_page_image(client):
     response = client.get(f"/page-image/{session_id}/0")
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/png"
+
+
+def test_upload_invalid_pdf(client):
+    """Test that non-PDF files are rejected"""
+    response = client.post(
+        "/upload",
+        files={"file": ("test.txt", b"This is not a PDF", "text/plain")},
+    )
+    assert response.status_code == 422
+
+
+def test_invalid_session_id_format(client):
+    """Test that malformed session IDs are rejected"""
+    response = client.get("/pages/not-a-uuid-format")
+    assert response.status_code == 400
