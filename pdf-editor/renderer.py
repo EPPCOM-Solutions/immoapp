@@ -1,6 +1,6 @@
 # pdf-editor/renderer.py
-import math
 import os
+import tempfile
 from typing import Tuple
 
 import numpy as np
@@ -56,9 +56,26 @@ def measure_noise(region: np.ndarray) -> float:
     return float(np.std(region.astype(float)))
 
 
-def _elastic_distort(arr: np.ndarray, alpha: float = 3.5, sigma: float = 1.3) -> np.ndarray:
+def _measure_background_noise(region: np.ndarray) -> float:
+    """Measure noise level using only background (light) pixels to avoid text/bg contrast inflation."""
+    if region.size == 0:
+        return 0.0
+    lum = (
+        0.299 * region[:, :, 0].astype(float)
+        + 0.587 * region[:, :, 1].astype(float)
+        + 0.114 * region[:, :, 2].astype(float)
+    )
+    threshold = np.percentile(lum, 90)
+    bg_mask = lum >= threshold
+    bg_pixels = region[bg_mask]
+    if len(bg_pixels) == 0:
+        return float(np.std(region.astype(float)))
+    return float(np.std(bg_pixels.astype(float)))
+
+
+def _elastic_distort(arr: np.ndarray, alpha: float = 3.5, sigma: float = 1.3, seed: int = 7) -> np.ndarray:
     """Apply elastic distortion to simulate scan/typewriter artifacts."""
-    rng = np.random.default_rng(7)
+    rng = np.random.default_rng(seed)
     h, w = arr.shape[:2]
     dx = gaussian_filter(rng.standard_normal((h, w)) * alpha, sigma)
     dy = gaussian_filter(rng.standard_normal((h, w)) * alpha, sigma)
@@ -106,7 +123,8 @@ def patch_block(
 
     region = img_arr[y0:y1, x0:x1]
     text_color = extract_text_color(region)
-    noise_sigma = measure_noise(region) * 0.25
+    noise_sigma = _measure_background_noise(region) * 0.25
+    block_seed = (x0 * 1000 + y0) % (2**31)
 
     # Render text on white background
     font_size = max(8, int(bh * 0.72))
@@ -123,11 +141,11 @@ def patch_block(
     text_arr = np.array(text_img)
 
     # Elastic distortion
-    text_arr = _elastic_distort(text_arr)
+    text_arr = _elastic_distort(text_arr, seed=block_seed)
 
     # Add noise matching original
     if noise_sigma > 1.5:
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(block_seed + 1)
         noise = rng.normal(0, noise_sigma, text_arr.shape)
         text_arr = np.clip(text_arr.astype(float) + noise, 0, 255).astype(np.uint8)
 
@@ -143,4 +161,14 @@ def patch_block(
     pw = min(bw, patch_arr.shape[1])
     img_arr[y0:y0 + ph, x0:x0 + pw] = patch_arr[:ph, :pw]
 
-    Image.fromarray(img_arr).save(page_path)
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".png", dir=os.path.dirname(page_path) or ".")
+    try:
+        os.close(tmp_fd)
+        Image.fromarray(img_arr).save(tmp_path)
+        os.replace(tmp_path, page_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise

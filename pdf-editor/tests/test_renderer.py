@@ -27,6 +27,8 @@ def test_extract_text_color_rgb():
     arr = _make_test_image(text_color=(10, 20, 80))
     color = extract_text_color(arr)
     assert len(color) == 3
+    # Blue channel should dominate given the input text color
+    assert color[2] > color[0]
 
 
 def test_measure_noise_returns_float():
@@ -91,5 +93,8 @@ def test_patch_block_empty_text_no_crash():
         img.save(tmp_path)
         bbox = [[10, 10], [100, 10], [100, 30], [10, 30]]
         patch_block(tmp_path, bbox, "", angle=0.0)
+        # File must still be a valid readable PNG after empty text patch
+        result = Image.open(tmp_path)
+        assert result.size == (300, 100)
     finally:
         os.unlink(tmp_path)
