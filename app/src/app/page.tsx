@@ -70,8 +70,8 @@ export default function Home() {
           // If a max price is set below the 2Mil edge case, rule out if strictly higher.
           if (settings.maxPrice < 2000000 && p.price > 0 && p.price > settings.maxPrice) return false;
           
-          // Strict minRooms check: If user wants specific rooms (>1), drop anything smaller OR missing (null).
-          if (settings.minRooms > 1 && (p.rooms === null || p.rooms < settings.minRooms)) return false;
+          // Tolerant minRooms check: Wenn die Räume nicht parsebar waren (null) wie bei ImmoScout/Regional, filtern wir sie absichtlich NICHT raus.
+          if (settings.minRooms > 1 && p.rooms !== null && p.rooms < settings.minRooms) return false;
           
           // Tolerant minSpace check: If user cares (>10), drop ONLY if we are sure it's smaller. Null passes.
           if (settings.minSpace > 10 && p.livingSpace !== null && p.livingSpace < settings.minSpace) return false;
@@ -136,7 +136,7 @@ export default function Home() {
 
   const handleSwipe = (id: string, direction: 'left' | 'right') => {
     if (direction === 'right') {
-      const property = properties[currentIndex];
+      const property = properties.find(p => p.id === id);
       if (property && !savedProperties.find(p => p.id === property.id)) {
         setSavedProperties([...savedProperties, property]);
       }
@@ -353,7 +353,7 @@ export default function Home() {
       {currentTab === 'discover' && (
         <div className="px-8 pb-4 flex justify-between items-center z-40">
           <div className="flex flex-col">
-            <img src="https://www.eppcom.de/assets/images/Logo.webp" alt="EPPCOM" className="h-12 object-contain mb-2 self-start drop-shadow-md" />
+            <img src="https://www.eppcom.de/assets/images/Logo.webp" alt="EPPCOM" className="h-24 object-contain mb-2 self-start drop-shadow-md" />
             <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 uppercase tracking-widest leading-none">
               Immo<span className="text-white">Pulse</span>
             </h1>
