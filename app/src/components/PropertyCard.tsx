@@ -166,8 +166,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
           Pass
         </motion.div>
 
-        <div className="absolute bottom-0 left-0 right-0 p-6 z-20 text-white">
-          <div className="flex justify-between items-end mb-2">
+        <div className="absolute bottom-0 left-0 right-0 p-5 z-20 text-white max-h-[50%] overflow-y-auto hide-scrollbar flex flex-col justify-end">
+          <div className="flex justify-between items-end mb-2 shrink-0">
             <h2 className="text-2xl font-bold font-sans tracking-tight leading-tight max-w-[70%] drop-shadow-md">{property.title}</h2>
             <div className="text-right">
               <span className="text-3xl font-black text-white decoration-emerald-500 underline decoration-4 underline-offset-4 drop-shadow-md">{property.price > 0 ? property.price.toLocaleString('de-DE') : 'k/A'}</span>
@@ -175,12 +175,12 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
             </div>
           </div>
           
-          <div className="flex items-center justify-between text-slate-300 text-sm mb-4">
+          <div className="flex items-center justify-between text-slate-300 text-sm mb-4 shrink-0">
             <div className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-emerald-400" /> <span className="truncate drop-shadow-md">{property.address}</span></div>
             {renderMitbewerberScore()}
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex gap-4 shrink-0">
             <div className="flex-1 bg-slate-800/80 backdrop-blur-md rounded-2xl p-3 border border-slate-700/50 flex flex-col items-center justify-center">
               <Maximize className="w-5 h-5 text-emerald-400 mb-1" />
               <span className="font-semibold">{property.livingSpace !== null ? `${property.livingSpace} m²` : 'k.A.'}</span>
@@ -200,8 +200,8 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
           {renderRenditeAmpel()}
 
           {property.url && (
-            <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 mt-4 px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-emerald-400 rounded-xl font-bold transition-all shadow-lg w-full z-50 relative pointer-events-auto">
-              <ExternalLink className="w-4 h-4" /> Originalanzeige öffnen
+            <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 mt-4 px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-emerald-400 rounded-xl font-bold transition-all shadow-lg w-full z-50 relative pointer-events-auto shrink-0">
+              <ExternalLink className="w-4 h-4" /> {property.price === 0 ? 'Zur Portal-Suche' : 'Originalanzeige öffnen'}
             </a>
           )}
         </div>
