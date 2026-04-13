@@ -124,7 +124,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
       animate={exitX !== null ? { x: exitX, opacity: 0 } : { x: 0, opacity: 1 }}
-      className="absolute inset-0 w-full h-[70vh] p-4 cursor-grab active:cursor-grabbing origin-bottom"
+      className="absolute inset-0 w-full h-[calc(100%-1rem)] p-4 pb-8 cursor-grab active:cursor-grabbing origin-bottom"
     >
       <div className="relative w-full h-full rounded-3xl overflow-hidden glass shadow-2xl border border-stone-700/50">
         <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-900/40 to-transparent z-10" />

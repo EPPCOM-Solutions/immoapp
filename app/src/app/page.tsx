@@ -194,7 +194,7 @@ export default function Home() {
   const renderDiscover = () => {
     if (isLoading) {
       return (
-        <div className="flex flex-col items-center justify-center h-[70vh] text-center px-8">
+        <div className="flex flex-col items-center justify-center h-full pb-20 text-center px-8">
           <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-6"></div>
            <h2 className="text-xl font-bold text-white mb-2">Scanne Portale...</h2>
            <p className="text-stone-400 text-sm">Suche nach Inhalten in {settings.locations?.join(', ') || '...'} (Live)</p>
@@ -204,7 +204,7 @@ export default function Home() {
 
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center h-[70vh] text-center px-8">
+        <div className="flex flex-col items-center justify-center h-full pb-20 text-center px-8">
            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-6 text-red-500 font-bold text-2xl">!</div>
            <h2 className="text-xl font-bold text-white mb-2">Fehler beim Abruf</h2>
            <p className="text-stone-400 text-sm">{error}</p>
@@ -215,7 +215,7 @@ export default function Home() {
 
     if (properties.length === 0 || currentIndex >= properties.length) {
       return (
-        <div className="flex flex-col items-center justify-center h-[70vh] text-center px-8">
+        <div className="flex flex-col items-center justify-center h-full pb-20 text-center px-8">
           <div className="w-24 h-24 bg-stone-800 rounded-full flex items-center justify-center mb-6 border border-stone-700">
              <Settings2 className="w-10 h-10 text-orange-400" />
           </div>
@@ -252,7 +252,7 @@ export default function Home() {
                     )}
                     {!isTop && (
                        // Mock background cards
-                       <div className="w-full h-[70vh] p-4">
+                       <div className="w-full h-[calc(100%-1rem)] p-4 pb-8">
                          <div className="w-full h-full rounded-3xl glass backdrop-blur-sm border-white/5 bg-stone-800/40" />
                        </div>
                     )}
