@@ -175,7 +175,7 @@ export default function Home() {
 
   const exportEmail = () => {
     if (savedProperties.length === 0) return;
-    const subject = encodeURIComponent("Meine gemerkten Immobilien (ImmoPulse)");
+    const subject = encodeURIComponent("Meine gemerkten Immobilien (LivingMatch)");
     let body = "Hier sind meine gemerkten Immobilien:\n\n";
     savedProperties.forEach(p => {
        body += `🏠 ${p.title}\n📍 ${p.address}\n💰 ${p.price > 100 ? `${p.price} €` : 'k/A'}\n🔗 ${p.url || 'App-intern'}\n`;
@@ -195,9 +195,9 @@ export default function Home() {
     if (isLoading) {
       return (
         <div className="flex flex-col items-center justify-center h-[70vh] text-center px-8">
-          <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-6"></div>
+          <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mb-6"></div>
            <h2 className="text-xl font-bold text-white mb-2">Scanne Portale...</h2>
-           <p className="text-slate-400 text-sm">Suche nach Inhalten in {settings.locations?.join(', ') || '...'} (Live)</p>
+           <p className="text-stone-400 text-sm">Suche nach Inhalten in {settings.locations?.join(', ') || '...'} (Live)</p>
         </div>
       );
     }
@@ -207,8 +207,8 @@ export default function Home() {
         <div className="flex flex-col items-center justify-center h-[70vh] text-center px-8">
            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-6 text-red-500 font-bold text-2xl">!</div>
            <h2 className="text-xl font-bold text-white mb-2">Fehler beim Abruf</h2>
-           <p className="text-slate-400 text-sm">{error}</p>
-           <button onClick={() => setShowSettings(true)} className="mt-8 px-6 py-3 bg-slate-800 text-slate-300 rounded-xl font-bold">Filter ändern</button>
+           <p className="text-stone-400 text-sm">{error}</p>
+           <button onClick={() => setShowSettings(true)} className="mt-8 px-6 py-3 bg-stone-800 text-stone-300 rounded-xl font-bold">Filter ändern</button>
         </div>
       );
     }
@@ -216,14 +216,14 @@ export default function Home() {
     if (properties.length === 0 || currentIndex >= properties.length) {
       return (
         <div className="flex flex-col items-center justify-center h-[70vh] text-center px-8">
-          <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mb-6 border border-slate-700">
-             <Settings2 className="w-10 h-10 text-emerald-400" />
+          <div className="w-24 h-24 bg-stone-800 rounded-full flex items-center justify-center mb-6 border border-stone-700">
+             <Settings2 className="w-10 h-10 text-orange-400" />
           </div>
           <h2 className="text-xl font-bold text-white mb-2">Keine Inserate mehr</h2>
-          <p className="text-slate-400 text-sm">Passe deine Sucheinstellungen an oder warte auf neue Angebote (Echtzeit-Push in Phase 2).</p>
+          <p className="text-stone-400 text-sm">Passe deine Sucheinstellungen an oder warte auf neue Angebote (Echtzeit-Push in Phase 2).</p>
           <button 
             onClick={() => setShowSettings(true)}
-            className="mt-8 px-6 py-3 bg-emerald-500/20 text-emerald-400 rounded-xl font-bold border border-emerald-500/30"
+            className="mt-8 px-6 py-3 bg-orange-500/20 text-orange-400 rounded-xl font-bold border border-orange-500/30"
           >
             Filter anpassen
           </button>
@@ -242,7 +242,7 @@ export default function Home() {
               const isTop = idx === arr.length - 1;
               return (
                 <div key={property.id} className="absolute inset-0 w-full flex justify-center pointer-events-none">
-                  <div className={`w-full max-w-[90%] transition-transform duration-300 ${isTop ? 'pointer-events-auto scale-100 translate-y-0 z-20' : 'scale-95 -translate-y-4 opacity-50 z-10'}`}>
+                  <div className={`w-full max-w-[90%] transition-transform duration-300 ${isTop ? 'pointer-events-auto scale-100 transtone-y-0 z-20' : 'scale-95 -transtone-y-4 opacity-50 z-10'}`}>
                     {isTop && (
                       <PropertyCard 
                         property={property} 
@@ -253,7 +253,7 @@ export default function Home() {
                     {!isTop && (
                        // Mock background cards
                        <div className="w-full h-[70vh] p-4">
-                         <div className="w-full h-full rounded-3xl glass backdrop-blur-sm border-white/5 bg-slate-800/40" />
+                         <div className="w-full h-full rounded-3xl glass backdrop-blur-sm border-white/5 bg-stone-800/40" />
                        </div>
                     )}
                   </div>
@@ -271,29 +271,29 @@ export default function Home() {
         <h1 className="text-3xl font-black text-white">Gemerkt ({savedProperties.length})</h1>
         {savedProperties.length > 0 && (
           <div className="flex gap-2">
-            <button onClick={exportEmail} className="px-3 py-1.5 bg-slate-800 text-emerald-400 text-xs font-bold rounded-lg border border-slate-700">
+            <button onClick={exportEmail} className="px-3 py-1.5 bg-stone-800 text-orange-400 text-xs font-bold rounded-lg border border-stone-700">
               E-Mail Senden
             </button>
-            <button onClick={exportPDF} className="px-3 py-1.5 bg-slate-800 text-emerald-400 text-xs font-bold rounded-lg border border-slate-700">
+            <button onClick={exportPDF} className="px-3 py-1.5 bg-stone-800 text-orange-400 text-xs font-bold rounded-lg border border-stone-700">
               PDF Export
             </button>
           </div>
         )}
       </div>
       {savedProperties.length === 0 ? (
-        <p className="text-slate-400 text-center mt-20">Noch keine Immobilien favorisiert.</p>
+        <p className="text-stone-400 text-center mt-20">Noch keine Immobilien favorisiert.</p>
       ) : (
         <div className="space-y-4">
           {savedProperties.map(property => {
             const hasApplied = appliedIds.includes(property.id);
             return (
-              <div key={property.id} className="bg-slate-800/60 p-4 rounded-2xl border border-slate-700 backdrop-blur-md">
+              <div key={property.id} className="bg-stone-800/60 p-4 rounded-2xl border border-stone-700 backdrop-blur-md">
                 <div className="flex gap-4">
                   <img src={property.imageUrl} className="w-20 h-20 rounded-xl object-cover" alt="" />
                   <div className="flex-1">
                     <h3 className="text-white font-bold text-sm line-clamp-1">{property.title}</h3>
-                    <p className="text-emerald-400 font-bold mt-1">{property.price.toLocaleString()} €</p>
-                    <p className="text-slate-400 text-xs mt-1 truncate">{property.source}</p>
+                    <p className="text-orange-400 font-bold mt-1">{property.price.toLocaleString()} €</p>
+                    <p className="text-stone-400 text-xs mt-1 truncate">{property.source}</p>
                   </div>
                 </div>
                 
@@ -302,21 +302,21 @@ export default function Home() {
                     href={property.url} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="mt-3 block w-full text-center py-2 bg-slate-700/50 hover:bg-emerald-500/20 text-emerald-400 border border-slate-600 hover:border-emerald-500/50 rounded-lg text-xs font-bold transition-all"
+                    className="mt-3 block w-full text-center py-2 bg-stone-700/50 hover:bg-orange-500/20 text-orange-400 border border-stone-600 hover:border-orange-500/50 rounded-lg text-xs font-bold transition-all"
                   >
                     Anzeige direkt öffnen
                   </a>
                 )}
                 
-                <div className="mt-4 pt-4 border-t border-slate-700/50 flex gap-2">
+                <div className="mt-4 pt-4 border-t border-stone-700/50 flex gap-2">
                   <button 
                     onClick={() => {
                       if(!hasApplied) handleApply(property.id);
                     }}
                     className={`flex-1 p-3 flex justify-center text-sm items-center gap-2 rounded-xl font-bold transition-all ${
                       hasApplied 
-                        ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-500/30' 
-                        : 'bg-emerald-500 text-slate-900 hover:bg-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                        ? 'bg-orange-900/40 text-orange-400 border border-orange-500/30' 
+                        : 'bg-orange-500 text-stone-900 hover:bg-orange-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                     }`}
                   >
                     {hasApplied ? <CheckCircle2 className="w-4 h-4" /> : <Send className="w-4 h-4" />}
@@ -324,7 +324,7 @@ export default function Home() {
                   </button>
                   <button 
                     onClick={() => setSavedProperties(savedProperties.filter(p => p.id !== property.id))}
-                    className="p-3 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl border border-slate-600 transition-colors"
+                    className="p-3 bg-stone-700 hover:bg-stone-600 text-stone-300 rounded-xl border border-stone-600 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -332,7 +332,7 @@ export default function Home() {
                 {/* Notes Section */}
                 <div className="mt-3">
                    <textarea
-                     className="w-full bg-slate-900/50 text-slate-300 text-xs p-2 rounded-lg border border-slate-700 focus:border-emerald-500 outline-none"
+                     className="w-full bg-stone-900/50 text-stone-300 text-xs p-2 rounded-lg border border-stone-700 focus:border-orange-500 outline-none"
                      rows={2}
                      placeholder="Notizen / Checkliste für Besichtigung..."
                      value={property.notes || ''}
@@ -353,14 +353,16 @@ export default function Home() {
       {currentTab === 'discover' && (
         <div className="px-8 pb-4 flex justify-between items-center z-40">
           <div className="flex flex-col">
-            <img src="https://www.eppcom.de/assets/images/Logo.webp" alt="EPPCOM" className="h-24 object-contain mb-2 self-start drop-shadow-md" />
-            <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 uppercase tracking-widest leading-none">
-              Immo<span className="text-white">Pulse</span>
+            <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-400 tracking-tight leading-none mb-1">
+              LivingMatch
             </h1>
+            <p className="text-stone-300 text-xs font-medium italic tracking-wide">
+              Dein Zuhause, perfekt gematcht.
+            </p>
           </div>
           <button 
             onClick={() => setShowSettings(true)}
-            className="p-2.5 glass rounded-full text-slate-300 hover:text-white transition-colors"
+            className="p-2.5 glass rounded-full text-stone-300 hover:text-white transition-colors"
           >
             <Settings2 className="w-5 h-5" />
           </button>

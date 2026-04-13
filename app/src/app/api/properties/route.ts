@@ -183,9 +183,10 @@ async function fetchImmowelt(location: string, intent: SearchIntent, propertyTyp
 
       const imageUrl = $(el).find('img').attr('src') || 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=1000&auto=format&fit=crop';
       
+      const hashId = title.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15) || Math.random().toString(36).slice(2, 10);
       if (title && price > 0) {
         properties.push({
-          id: `iw-${Math.random()}`,
+          id: `iw-${hashId}-${price}`,
           title, address: location, price, rooms, livingSpace, imageUrl, url: adUrl || url,
           source: 'Immowelt', competitionScore: 8, priceTrend: 'steady'
         });
@@ -200,8 +201,7 @@ async function fetchImmowelt(location: string, intent: SearchIntent, propertyTyp
 }
 
 function generateMockImmoscout(location: string, intent: SearchIntent, propertyType: string): Property[] {
-  // ImmoScout24 STRICTLY blocks fetch with 401. So we mock 1-2 entries to show multi-portal working.
-  const price = intent === 'rent' ? Math.floor(Math.random() * 800) + 400 : Math.floor(Math.random() * 500000) + 100000;
+  // We cannot scrape IS24 directly due to bot protection, so we provide an honest deep-link search card.
   let is24Intent = 'wohnung-mieten';
   if (intent === 'rent') {
     if (propertyType === 'haus') is24Intent = 'haus-mieten';
@@ -211,62 +211,105 @@ function generateMockImmoscout(location: string, intent: SearchIntent, propertyT
     else if (propertyType === 'grundstueck') is24Intent = 'grundstueck-kaufen';
     else is24Intent = 'wohnung-kaufen';
   }
+  const safeLoc = location.toLowerCase().replace(/[^a-z0-9-]/g, '-');
   return [{
-     id: `is24-${Math.random()}`,
-     title: `(ImmoScout Mock) Traumhafte Immobilie in ${location}`,
-     address: `${location} Zentrum`,
-     price: price,
-     rooms: 3,
-     livingSpace: 75,
-     imageUrl: 'https://images.unsplash.com/photo-1502672260266-1c1e52b154ce?q=80&w=1000&auto=format&fit=crop',
-     url: `https://www.immobilienscout24.de/`,
-     source: 'ImmoScout24 (Mock)',
+     id: `is24-search-${safeLoc}-${intent}`,
+     title: `ImmoScout24: Alle ${propertyType} Angebote in ${location} ansehen`,
+     address: `${location} Einzugsgebiet`,
+     price: 0,
+     rooms: null,
+     livingSpace: null,
+     imageUrl: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?q=80&w=1000&auto=format&fit=crop', // generic abstract home 
+     url: `https://www.immobilienscout24.de/Suche/de/${safeLoc}/${is24Intent}`,
+     source: 'ImmoScout24 Portal',
      competitionScore: 9,
      priceTrend: 'hot'
   }];
 }
 
 function generateMockImmobilo(location: string, intent: SearchIntent, propertyType: string): Property[] {
-  // Mock für Immobilo
-  const price = intent === 'rent' ? Math.floor(Math.random() * 900) + 500 : Math.floor(Math.random() * 400000) + 150000;
   const immobiloIntent = intent === 'rent' ? 'mieten' : 'kaufen';
+  const safeLoc = location.toLowerCase().replace(/[^a-z0-9-]/g, '-');
   return [{
-     id: `immobilo-${Math.random()}`,
-     title: `(Immobilo) Schöne Immobilie in ${location}`,
-     address: `${location} Umgebung`,
-     price: price,
-     rooms: 2.5,
-     livingSpace: 65,
+     id: `immobilo-search-${safeLoc}-${intent}`,
+     title: `Immobilo: Weitere Angebote in ${location} vergleichen`,
+     address: `${location} Einzugsgebiet`,
+     price: 0,
+     rooms: null,
+     livingSpace: null,
      imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000&auto=format&fit=crop',
      url: `https://www.immobilo.de/${propertyType}-${immobiloIntent}/${encodeURIComponent(location)}`,
-     source: 'Immobilo',
+     source: 'Immobilo Portal',
      competitionScore: 6,
      priceTrend: 'steady'
   }];
 }
 
-function generateMockRegional(location: string, intent: SearchIntent, propertyType: string): Property[] {
-  // Lokales dynamisches Portal Mock
-  const portalName = location.toLowerCase().includes('stuttgart') ? 'Stuttgarter Nachrichten' 
-    : location.toLowerCase().includes('münchen') ? 'Münchener Merkur'
-    : `Lokalportal ${location}`;
+async function fetchRegional(location: string, intent: SearchIntent, propertyType: string): Promise<Property[]> {
+  try {
+    const slug = location.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    let typeParam = 'wohnungen';
+    if (propertyType === 'haus') typeParam = 'haeuser';
+    else if (propertyType === 'grundstueck') typeParam = 'grundstuecke';
+    const rentBuy = intent === 'rent' ? 'mieten' : 'kaufen';
     
-  const searchName = portalName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const price = intent === 'rent' ? Math.floor(Math.random() * 700) + 400 : Math.floor(Math.random() * 300000) + 100000;
-  return [{
-     id: `regio-${Math.random()}`,
-     title: `(Lokalinserat) Geheimtipp in ${location}`,
-     address: `${location}`,
-     price: price,
-     rooms: 4,
-     livingSpace: 90,
-     imageUrl: 'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1000&auto=format&fit=crop',
-     url: `https://www.${searchName}.de/immobilien/suche?q=${encodeURIComponent(location)}`,
-     source: portalName,
-     competitionScore: 3, // Regional has less competition
-     priceTrend: 'new'
-  }];
+    // Scrape real local ads from ohne-makler.net
+    const url = `https://www.ohne-makler.net/immobilie/${rentBuy}/${typeParam}/${slug}/`;
+    
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)' },
+      next: { revalidate: 60 }
+    });
+
+    if (!response.ok) return [];
+    
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    const properties: Property[] = [];
+    
+    // Ohne-makler parsing
+    $('.objekt, .estate, .property, article, tr.item, div.listing, a.expose-link').each((_, el) => {
+      let title = $(el).find('h2, h3, .title, strong, .headline').first().text().trim();
+      let href = $(el).find('a').first().attr('href') || $(el).attr('href') || '';
+      
+      // Fallback if the element itself is a link and contains title somewhere
+      if (!title && el.tagName.toLowerCase() === 'a') {
+         title = $(el).text().trim().replace(/\n/g, ' ').substring(0, 50);
+      }
+      
+      const adUrl = href.startsWith('http') ? href : `https://www.ohne-makler.net${href}`;
+      const text = $(el).text();
+      const priceMatch = text.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*€/);
+      const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g, ''), 10) : 0;
+      
+      let img = $(el).find('img').first().attr('src') || $(el).find('img').first().attr('data-src');
+      if (img && !img.startsWith('http')) img = `https://www.ohne-makler.net${img}`;
+      
+      if (title && price > 0 && href.includes('expose')) {
+        const hashId = title.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15);
+        properties.push({
+          id: `regional-${hashId}-${price}`,
+          title: title,
+          address: `${location} (Lokal)`,
+          price,
+          rooms: null,
+          livingSpace: null,
+          imageUrl: img || 'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1000&auto=format&fit=crop',
+          url: adUrl,
+          source: 'Regionalanzeigen (ohne-makler)',
+          competitionScore: 5,
+          priceTrend: 'steady'
+        });
+      }
+    });
+    
+    return properties.filter((v,i,a)=>a.findIndex(t=>(t.title === v.title))===i).slice(0, 8);
+  } catch(err) {
+    console.error("Regional Scraper Error", err);
+    return [];
+  }
 }
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -303,7 +346,7 @@ export async function GET(request: Request) {
         promises.push(Promise.resolve(generateMockImmobilo(loc, intent, propertyType)));
       }
       if (portals.includes('Regional')) {
-        promises.push(Promise.resolve(generateMockRegional(loc, intent, propertyType)));
+        promises.push(fetchRegional(loc, intent, propertyType));
       }
     });
 
