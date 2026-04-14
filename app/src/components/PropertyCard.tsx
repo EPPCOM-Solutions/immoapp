@@ -124,33 +124,36 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
       dragConstraints={{ left: 0, right: 0 }}
       onDragEnd={handleDragEnd}
       animate={exitX !== null ? { x: exitX, opacity: 0 } : { x: 0, opacity: 1 }}
-      className="w-full h-full cursor-grab active:cursor-grabbing origin-bottom"
+      className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing origin-bottom"
     >
       <div className="relative w-full h-full rounded-3xl overflow-hidden glass shadow-2xl border border-stone-700/50">
         <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-900/40 to-transparent z-10" />
         
-        {/* Top Right Source Badge (Non-clickable, just info) */}
-        <div className="absolute top-4 right-4 z-40 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md text-[10px] uppercase font-bold tracking-wider text-stone-400 border border-stone-700 flex items-center gap-1">
-          {property.source}
+        {/* Top Info Bar */}
+        <div className="absolute top-4 left-4 right-4 z-40 flex justify-between items-start pointer-events-none">
+           {/* Image Counter */}
+           <div className="px-3 py-1.5 rounded-xl bg-stone-950/70 border border-white/10 backdrop-blur-md text-xs font-bold text-white shadow-lg pointer-events-auto">
+             Bild {imageIndex + 1}/{images.length}
+           </div>
+           
+           {/* Originalanzeige Button */}
+           {property.url && (
+             <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="px-4 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-stone-900 text-xs font-bold shadow-lg transition-colors flex items-center gap-1.5 pointer-events-auto">
+                <ExternalLink className="w-3.5 h-3.5" /> {property.price === 0 ? 'Zur Suche' : 'Zum Angebot'}
+             </a>
+           )}
         </div>
 
 
         <img src={images[imageIndex]} alt={property.title} className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300" draggable={false} />
         
         {/* Image Navigation Overlays */}
-        <div className="absolute inset-0 z-20 flex">
+        <div className="absolute inset-0 z-30 flex">
            <div className="w-1/2 h-full" onClick={handlePrevImage} />
            <div className="w-1/2 h-full" onClick={handleNextImage} />
         </div>
 
-        {/* Carousel Indicators */}
-        {images.length > 1 && (
-          <div className="absolute top-4 left-0 right-0 flex justify-center gap-1 z-30 px-4">
-            {images.map((_, i) => (
-              <div key={i} className={`h-1 flex-1 rounded-full bg-white/40 shadow-sm backdrop-blur-md transition-all ${i === imageIndex ? 'bg-white' : ''}`} />
-            ))}
-          </div>
-        )}
+
         
         {loadingImages && (
           <div className="absolute top-8 left-1/2 transform -transtone-x-1/2 z-30 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full text-xs text-white">
@@ -177,7 +180,10 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
           
           <div className="flex items-center justify-between text-stone-300 text-sm mb-4 shrink-0">
             <div className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-orange-400" /> <span className="truncate drop-shadow-md">{property.address}</span></div>
-            {renderMitbewerberScore()}
+            <div className="flex gap-2">
+              <span className="px-2 py-0.5 bg-stone-700/80 rounded border border-stone-600 text-xs text-stone-300">{property.source}</span>
+              {renderMitbewerberScore()}
+            </div>
           </div>
 
           <div className="flex gap-4 shrink-0">
@@ -199,11 +205,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
 
           {renderRenditeAmpel()}
 
-          {property.url && (
-            <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 mt-4 px-4 py-3 bg-stone-800 hover:bg-stone-700 border border-stone-600 text-orange-400 rounded-xl font-bold transition-all shadow-lg w-full z-50 relative pointer-events-auto shrink-0">
-              <ExternalLink className="w-4 h-4" /> {property.price === 0 ? 'Zur Portal-Suche' : 'Originalanzeige öffnen'}
-            </a>
-          )}
+
         </div>
       </div>
     </motion.div>
