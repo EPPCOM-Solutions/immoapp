@@ -251,20 +251,20 @@ function generateMockImmobilo(location: string, intent: SearchIntent, propertyTy
 }
 
 function fetchRegional(location: string, intent: SearchIntent, propertyType: string): Promise<Property[]> {
-  const rentBuy = intent === 'rent' ? 'mieten' : 'kaufen';
-  const typeParam = propertyType === 'haus' ? 'Haus' : propertyType === 'grundstueck' ? 'Grundstück' : 'Wohnung';
+  const rentBuy = intent === 'rent' ? 'wohnung-mieten' : 'wohnung-kaufen';
+  const safeLoc = encodeURIComponent(location.toLowerCase());
   
   return Promise.resolve([{
-    id: `regional-search-${location}`,
-    title: `Regionalanzeigen: Weite lokale Suche für ${location} auf Google öffnen`,
-    address: `${location} und Umgebung`,
+    id: `regional-search-${safeLoc}`,
+    title: `Regionale Inserate: Ländliche & dezentrale Makler-Angebote in ${location}`,
+    address: `${location} Umland`,
     price: 0,
     rooms: null,
     livingSpace: null,
-    imageUrl: 'https://images.unsplash.com/photo-1464303730761-1eb47b85e0bf?q=80&w=1000&auto=format&fit=crop',
-    url: `https://www.google.de/search?q=${typeParam}+${rentBuy}+${encodeURIComponent(location)}`,
-    source: 'Lokale Makler',
-    competitionScore: 5,
+    imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000&auto=format&fit=crop',
+    url: `https://www.immonet.de/immobiliensuche/sel.do?ort=${safeLoc}&marketingtype=${intent === 'rent' ? '1' : '2'}`,
+    source: 'Regionale Netzwerke',
+    competitionScore: 4,
     priceTrend: 'steady'
   }]);
 }
@@ -352,6 +352,24 @@ export async function GET(request: Request) {
     const results = await Promise.all(promises);
     let fallbackProperties: Property[] = results.reduce((acc, val) => acc.concat(val), []);
     fallbackProperties = fallbackProperties.sort(() => Math.random() - 0.5);
+
+    // Provide generic beautiful filler interior images for the galleries 
+    // so tests / friends see full swipeable capabilities without server IP blocks
+    const interiorFillers = [
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1560185016-a36c64bc25d7?auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1560185127-6ed189bf02f4?auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&q=80'
+    ];
+
+    fallbackProperties = fallbackProperties.map(p => ({
+      ...p,
+      imageUrls: [
+         p.imageUrl,
+         interiorFillers[Math.floor(Math.random() * interiorFillers.length)],
+         interiorFillers[Math.floor(Math.random() * interiorFillers.length)]
+      ].filter(Boolean)
+    }));
 
     return NextResponse.json({ 
       properties: fallbackProperties, 
