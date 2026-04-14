@@ -141,7 +141,7 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
            {/* Originalanzeige Button */}
            {property.url && (
              <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="px-4 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-stone-900 text-xs font-bold shadow-lg transition-colors flex items-center gap-1.5 pointer-events-auto">
-                <ExternalLink className="w-3.5 h-3.5" /> {property.price === 0 ? 'Zur Suche' : 'Zum Angebot'}
+                <ExternalLink className="w-3.5 h-3.5" /> {property.price === 0 ? 'Zur Anzeige' : 'Zum Angebot'}
              </a>
            )}
         </div>
@@ -199,11 +199,11 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
           <div className="flex gap-4 shrink-0">
             <div className="flex-1 bg-stone-800/80 backdrop-blur-md rounded-2xl p-3 border border-stone-700/50 flex flex-col items-center justify-center">
               <Maximize className="w-5 h-5 text-orange-400 mb-1" />
-              <span className="font-semibold">{property.livingSpace !== null ? `${property.livingSpace} m²` : 'k.A.'}</span>
+              <span className="font-semibold">{property.livingSpace !== null ? `${property.livingSpace.toString().replace('.', ',')} m²` : 'k.A.'}</span>
             </div>
             <div className="flex-1 bg-stone-800/80 backdrop-blur-md rounded-2xl p-3 border border-stone-700/50 flex flex-col items-center justify-center">
               <BedDouble className="w-5 h-5 text-orange-400 mb-1" />
-              <span className="font-semibold">{property.rooms !== null ? `${property.rooms} Zi.` : 'k.A.'}</span>
+              <span className="font-semibold">{property.rooms !== null ? `${property.rooms.toString().replace('.', ',')} Zi.` : 'k.A.'}</span>
             </div>
             {property.priceTrend && (
               <div className="flex-1 bg-stone-800/80 backdrop-blur-md rounded-2xl p-3 border border-stone-700/50 flex flex-col items-center justify-center">

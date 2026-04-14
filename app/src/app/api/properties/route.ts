@@ -178,10 +178,12 @@ async function fetchImmowelt(location: string, intent: SearchIntent, propertyTyp
       const price = parseInt(priceText.replace(/[^\d]/g, ''), 10) || 0;
       
       const spaceText = $(el).find('[data-test="area"]').text();
-      const livingSpace = parseInt(spaceText.replace(/[^\d]/g, ''), 10) || null;
+      const sMatch = spaceText.match(/(\d+(?:,\d+)?)/);
+      const livingSpace = sMatch ? parseFloat(sMatch[1].replace(',', '.')) : null;
       
       const roomText = $(el).find('[data-test="rooms"]').text();
-      const rooms = parseInt(roomText.replace(/[^\d]/g, ''), 10) || null;
+      const rMatch = roomText.match(/(\d+(?:,\d+)?)/);
+      const rooms = rMatch ? parseFloat(rMatch[1].replace(',', '.')) : null;
       
       let adUrl = $(el).find('a').attr('href') || '';
       if(adUrl && !adUrl.startsWith('http')) adUrl = `https://www.immowelt.de${adUrl}`;
