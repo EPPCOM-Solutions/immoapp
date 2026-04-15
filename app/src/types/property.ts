@@ -19,6 +19,7 @@ export interface Property {
   priceTrend?: 'new' | 'steady' | 'reduced' | 'hot'; // Preishistorie/Trend
   notes?: string;
   checklist?: Record<string, boolean>; // For visit checks
+  isPrivate?: boolean; // Flag if it's von Privat
 }
 
 export interface UserProfile {
@@ -36,6 +37,8 @@ export interface UserProfile {
     user?: string;
     pass?: string;
   };
+  isBrokerMode?: boolean;
+  isPremium?: boolean;
 }
 
 export interface SearchSettings {

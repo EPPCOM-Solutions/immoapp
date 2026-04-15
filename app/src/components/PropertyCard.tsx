@@ -9,9 +9,10 @@ interface PropertyCardProps {
   property: Property;
   onSwipe: (id: string, direction: 'left' | 'right') => void;
   intent: SearchIntent;
+  isBrokerMode?: boolean;
 }
 
-export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, intent }) => {
+export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, intent, isBrokerMode }) => {
   const [exitX, setExitX] = useState<number | null>(null);
   const x = useMotionValue(0);
   
@@ -87,19 +88,39 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
     if (rendite < 3) colorClass = "text-red-400 bg-red-400/10 border-red-400/20";
     else if (rendite >= 3 && rendite < 5) colorClass = "text-amber-400 bg-amber-400/10 border-amber-400/20";
 
+    // Makler Mode: Erweiterte EK-Rendite (Beispiel: 20% EK, 4% Zinsen, 2% Tilgung)
+    let ekRenditeDisplay = null;
+    if (isBrokerMode) {
+       const ek = property.price * 0.2;
+       const kredit = property.price * 0.8;
+       const zinsUndTilgung = kredit * 0.06; // 6% Annuität pro Jahr
+       const cashflow = property.estimatedRent - zinsUndTilgung;
+       const ekRendite = (cashflow / ek) * 100;
+       
+       ekRenditeDisplay = (
+         <div className="text-right mt-2 pt-2 border-t border-current/20">
+            <div className="text-[10px] opacity-80 uppercase tracking-wider">Erw. EK-Rendite (20% EK)</div>
+            <div className="font-bold text-xs">{ekRendite.toFixed(1)}% p.a.</div>
+         </div>
+       );
+    }
+
     return (
-      <div className={`mt-3 flex items-center justify-between p-3 rounded-xl border backdrop-blur-sm ${colorClass}`}>
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5" />
-          <div>
-            <div className="text-xs opacity-80">Rendite-Ampel</div>
-            <div className="font-bold text-sm">{rendite.toFixed(1)}% Brutto</div>
+      <div className={`mt-3 p-3 rounded-xl border backdrop-blur-sm ${colorClass}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" />
+            <div>
+              <div className="text-xs opacity-80">Rendite-Ampel</div>
+              <div className="font-bold text-sm">{rendite.toFixed(1)}% Brutto</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs opacity-80">Kaufpreisfaktor</div>
+            <div className="font-bold text-sm">{factor.toFixed(1)}x</div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-xs opacity-80">Kaufpreisfaktor</div>
-          <div className="font-bold text-sm">{factor.toFixed(1)}x</div>
-        </div>
+        {ekRenditeDisplay}
       </div>
     );
   };
@@ -133,14 +154,22 @@ export const PropertyCard: React.FC<PropertyCardProps> = ({ property, onSwipe, i
         
         {/* Top Info Bar */}
         <div className="absolute top-4 left-4 right-4 z-40 flex justify-between items-start pointer-events-none">
-           {/* Image Counter */}
-           <div className="px-3 py-1.5 rounded-xl bg-stone-950/70 border border-white/10 backdrop-blur-md text-xs font-bold text-white shadow-lg pointer-events-auto">
-             Bild {imageIndex + 1}/{images.length}
+           {/* Image Counter & Badges */}
+           <div className="flex flex-col gap-2 pointer-events-auto">
+             <div className="px-3 py-1.5 rounded-xl bg-stone-950/70 border border-white/10 backdrop-blur-md text-xs font-bold text-white shadow-lg inline-block text-center fit-content max-w-max">
+               Bild {imageIndex + 1}/{images.length}
+             </div>
+             
+             {isBrokerMode && property.isPrivate && (
+               <div className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-600 to-rose-600 border border-orange-400/50 backdrop-blur-md text-xs font-black text-white shadow-[0_0_15px_rgba(249,115,22,0.5)] flex items-center gap-1.5 animate-pulse-slow">
+                 ✨ VON PRIVAT (Akquise)
+               </div>
+             )}
            </div>
            
            {/* Originalanzeige Button */}
            {property.url && (
-             <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="px-4 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-stone-900 text-xs font-bold shadow-lg transition-colors flex items-center gap-1.5 pointer-events-auto">
+             <a href={property.url} onPointerDown={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="px-4 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-stone-900 text-xs font-bold shadow-lg transition-colors flex items-center gap-1.5 pointer-events-auto shrink-0 self-start">
                 <ExternalLink className="w-3.5 h-3.5" /> {property.price === 0 ? 'Zur Anzeige' : 'Zum Angebot'}
              </a>
            )}

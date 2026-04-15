@@ -248,6 +248,7 @@ export default function Home() {
                       property={property} 
                       onSwipe={handleSwipe}
                       intent={settings.intent}
+                      isBrokerMode={profile.isBrokerMode}
                     />
                   )}
                   {!isTop && (

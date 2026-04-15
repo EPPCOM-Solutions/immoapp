@@ -71,6 +71,41 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
           </div>
         </div>
 
+        <div className="bg-stone-900 p-4 rounded-2xl mb-8 border border-stone-800">
+          <div className="flex items-center justify-between mb-4 pb-4 border-b border-stone-800">
+             <div>
+                <h3 className="font-bold text-sm text-white">Premium Account</h3>
+                <p className="text-xs text-stone-400">Erweiterte Funktionen freischalten</p>
+             </div>
+             <button
+               onClick={() => setProfile({...profile, isPremium: !profile.isPremium})}
+               className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${profile.isPremium ? 'bg-orange-500 text-stone-900 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-stone-800 text-stone-300 border border-stone-700'}`}
+             >
+               {profile.isPremium ? 'Premium Aktivierung Aufheben' : 'Premium Mockup Aktivieren'}
+             </button>
+          </div>
+          
+          <div className="flex items-center justify-between">
+             <div>
+                <h3 className="font-bold text-sm text-orange-400">Makler & Akquise Modus</h3>
+                <p className="text-xs text-stone-400 leading-tight mt-1">
+                  Blendet "Von Privat"-Anzeigen besonders hervor und<br/>
+                  Aktiviert den detaillierten Eigenkapital-Renditerechner.
+                </p>
+             </div>
+             <label className="relative inline-flex items-center cursor-pointer">
+               <input 
+                 type="checkbox" 
+                 value="" 
+                 className="sr-only peer" 
+                 checked={!!profile.isBrokerMode}
+                 onChange={e => setProfile({...profile, isBrokerMode: e.target.checked})}
+               />
+               <div className="w-11 h-6 bg-stone-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+             </label>
+          </div>
+        </div>
+
         <div className="space-y-5">
           <div>
             <label className="text-xs uppercase tracking-wider text-stone-400 font-bold mb-2 block">Vollständiger Name</label>

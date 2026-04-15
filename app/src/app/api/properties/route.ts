@@ -252,23 +252,79 @@ function generateMockImmobilo(location: string, intent: SearchIntent, propertyTy
   }];
 }
 
-function fetchRegional(location: string, intent: SearchIntent, propertyType: string): Promise<Property[]> {
-  const rentBuy = intent === 'rent' ? 'wohnung-mieten' : 'wohnung-kaufen';
-  const safeLoc = encodeURIComponent(location.toLowerCase());
-  
-  return Promise.resolve([{
-    id: `regional-search-${safeLoc}`,
-    title: `Regionale Inserate: Ländliche & dezentrale Makler-Angebote in ${location}`,
-    address: `${location} Umland`,
-    price: 0,
-    rooms: null,
-    livingSpace: null,
-    imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000&auto=format&fit=crop',
-    url: `https://www.immonet.de/immobiliensuche/sel.do?ort=${safeLoc}&marketingtype=${intent === 'rent' ? '1' : '2'}`,
-    source: 'Regionale Netzwerke',
-    competitionScore: 4,
-    priceTrend: 'steady'
-  }]);
+async function fetchRegional(location: string, intent: SearchIntent, propertyType: string): Promise<Property[]> {
+  try {
+    const safeLoc = encodeURIComponent(location.toLowerCase());
+    const rentBuy = intent === 'rent' ? 'mieten' : 'kaufen';
+    let typeParam = 'wohnungen';
+    if (propertyType === 'haus') typeParam = 'haeuser';
+    else if (propertyType === 'grundstueck') typeParam = 'grundstuecke';
+    
+    const url = `https://immo.swp.de/suche/${typeParam}-${rentBuy}/${safeLoc}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      next: { revalidate: 60 }
+    });
+
+    if (!response.ok) return [];
+    
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    const properties: Property[] = [];
+    
+    $('.featured-listings__item, .results-list__item').each((_, el) => {
+      const titleEl = $(el).find('h2, .featured-listings__item__title a, .results-list__item__title a').first();
+      const title = titleEl.text().trim();
+      
+      let href = titleEl.attr('href') || $(el).find('a').first().attr('href') || '';
+      const adUrl = href.startsWith('http') ? href : `https://immo.swp.de${href}`;
+      
+      const priceText = $(el).find('.featured-listings__item__price, .results-list__item__price').text() || $(el).text();
+      const priceMatch = priceText.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*€/);
+      const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g, ''), 10) : 0;
+      
+      let img = $(el).find('img').first().attr('data-src') || $(el).find('img').first().attr('src');
+      if (img && !img.startsWith('http')) img = `https://immo.swp.de${img}`;
+      
+      const text = $(el).text();
+      let rooms = null;
+      let livingSpace = null;
+      
+      const roomMatch = text.match(/(\d+(?:[.,]\d+)?)\s*[-]?(?:Zimmer|Zi\.|Zi\b)/i);
+      if (roomMatch) rooms = parseFloat(roomMatch[1].replace(',', '.'));
+      
+      const spaceMatch = text.match(/(\d+(?:[.,]\d+)?)\s*m²/i);
+      if (spaceMatch) livingSpace = parseFloat(spaceMatch[1].replace(',', '.'));
+
+      const isPrivate = text.toLowerCase().includes('von privat') || text.toLowerCase().includes('provisionsfrei');
+      
+      if (title && price > 0 && href) {
+        const hashId = title.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15);
+        properties.push({
+          id: `swp-${hashId}-${price}`,
+          title: title,
+          address: `${location} (Lokal)`,
+          price,
+          rooms,
+          livingSpace,
+          imageUrl: img || 'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1000&auto=format&fit=crop',
+          url: adUrl,
+          source: 'Regionale Zeitungen',
+          competitionScore: 4,
+          priceTrend: 'steady',
+          isPrivate
+        });
+      }
+    });
+    
+    return properties.filter((v,i,a)=>a.findIndex(t=>(t.title === v.title))===i).slice(0, 12);
+  } catch(err) {
+    console.error("Regional Scraper Error", err);
+    return [];
+  }
 }
 
 
