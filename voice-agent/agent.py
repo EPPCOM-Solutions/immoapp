@@ -39,9 +39,7 @@ DEEPGRAM_MODEL = os.getenv("DEEPGRAM_MODEL", "nova-2")
 
 # Local Whisper Configuration (self-hosted, zero-cost)
 USE_LOCAL_WHISPER = os.getenv("USE_LOCAL_WHISPER", "true").lower() == "true"
-_raw_whisper = os.getenv("WHISPER_MODEL", "base")
-# tiny halluziniert zu viel, small zu langsam (6s/Utterance) → base als Kompromiss
-WHISPER_MODEL = "base" if _raw_whisper in ("tiny", "small") else _raw_whisper
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "tiny")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "auto")
 
 # LLM Configuration (Ollama local)
@@ -102,7 +100,7 @@ async def fetch_rag_context(query: str) -> Optional[str]:
         return _rag_cache[query_hash]
 
     try:
-        async with httpx.AsyncClient(timeout=1.5) as client:
+        async with httpx.AsyncClient(timeout=1.0) as client:
             response = await client.post(RAG_WEBHOOK_URL, json={
                 "tenant_id": RAG_TENANT_ID,
                 "query": query,
@@ -372,7 +370,7 @@ async def entrypoint(ctx: JobContext):
 
     # Begrüßung — nicht unterbrechbar, fragt nach Name
     greeting = "Hallo! Ich bin Nexo, der KI-Assistent von Eppkom Solutions. Mit wem habe ich das Vergnügen, wie heißt du?"
-    await session.say(greeting, allow_interruptions=False)
+    await session.say(greeting, allow_interruptions=True)
     await _publish_data({"type": "agent_speech", "text": greeting})
 
     await asyncio.Event().wait()
