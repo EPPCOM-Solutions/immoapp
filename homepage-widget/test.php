@@ -53,7 +53,13 @@
             apiHost: "https://bot.eppcom.de",
             container: document.getElementById("chatbot-container"),
             theme: {
-                chatWindow: { backgroundColor: "#FFFFFF" }
+                chatWindow: { backgroundColor: "#FFFFFF" },
+                customCss: `
+                    .typebot-powered-by,
+                    a[href*="typebot.io"],
+                    [data-testid="branding"],
+                    .typebot-branding { display: none !important; }
+                `
             }
         });
     </script>

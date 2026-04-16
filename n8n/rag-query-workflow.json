@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json;\n\nif (!body.tenant_slug) throw new Error('tenant_slug fehlt');\nif (!body.query || body.query.length < 3) throw new Error('query zu kurz oder fehlt');\n\nreturn [{ json: {\n  tenant_slug: body.tenant_slug,\n  query: body.query,\n  session_id: body.session_id || `session-${Date.now()}`,\n  bot_id: body.bot_id || null,\n  top_k: body.top_k || 5,\n  min_similarity: body.min_similarity || 0.55,\n  doc_type: body.doc_type || null,\n  model: body.model || 'llama3.2:3b',\n  started_at: Date.now()\n}}];"
+        "jsCode": "const body = $input.first().json;\n\nif (!body.tenant_slug) throw new Error('tenant_slug fehlt');\nif (!body.query || body.query.length < 3) throw new Error('query zu kurz oder fehlt');\n\nreturn [{ json: {\n  tenant_slug: body.tenant_slug,\n  query: body.query,\n  session_id: body.session_id || `session-${Date.now()}`,\n  bot_id: body.bot_id || null,\n  top_k: body.top_k || 5,\n  min_similarity: body.min_similarity || 0.55,\n  doc_type: body.doc_type || null,\n  model: body.model || 'qwen2.5:7b',\n  started_at: Date.now()\n}}];"
       },
       "id": "validate-query",
       "name": "Validate Query",
@@ -62,7 +62,7 @@
           "parameters": [
             {
               "name": "model",
-              "value": "nomic-embed-text"
+              "value": "qwen3-embedding:0.6b"
             },
             {
               "name": "prompt",
@@ -83,7 +83,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT * FROM public.search_chunks(\n  '{{ $('Get Tenant Schema').first().json.schema_name }}',\n  '{{ JSON.stringify($json.embedding) }}'::vector(768),\n  {{ $('Validate Query').first().json.top_k }},\n  {{ $('Validate Query').first().json.min_similarity }},\n  'nomic-embed-text',\n  {{ $('Validate Query').first().json.doc_type ? `'${$('Validate Query').first().json.doc_type}'` : 'NULL' }},\n  'public'\n);",
+        "query": "SELECT * FROM public.search_chunks(\n  '{{ $('Get Tenant Schema').first().json.schema_name }}',\n  '{{ JSON.stringify($json.embedding) }}'::vector(1024),\n  {{ $('Validate Query').first().json.top_k }},\n  {{ $('Validate Query').first().json.min_similarity }},\n  'qwen3-embedding:0.6b',\n  {{ $('Validate Query').first().json.doc_type ? `'${$('Validate Query').first().json.doc_type}'` : 'NULL' }},\n  'public'\n);",
         "options": {}
       },
       "id": "vector-search",
