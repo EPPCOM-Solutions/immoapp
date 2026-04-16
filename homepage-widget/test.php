@@ -1,8 +1,7 @@
 <?php
 /**
- * EPPCOM Voicebot – Einbindung auf www.eppcom.de/test.php
- * Dieses File auf dem Website-Server hochladen.
- * Das eigentliche Widget läuft auf appdb.eppcom.de.
+ * EPPCOM Chatbot Widget – Typebot direkt eingebettet
+ * Dieses File auf dem Website-Server hochladen (www.eppcom.de/test.php).
  */
 ?>
 <!DOCTYPE html>
@@ -10,7 +9,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EPPCOM Voicebot – Test</title>
+    <title>EPPCOM – KI-Assistent Nexo</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -24,48 +23,39 @@
             padding: 20px;
             gap: 24px;
         }
-        h1 {
-            font-size: 22px;
-            color: #1e3a8a;
-            text-align: center;
-        }
-        p {
-            color: #555;
-            text-align: center;
-            font-size: 14px;
-            max-width: 400px;
-        }
-        .widget-container {
-            width: 340px;
-            height: 440px;
+        h1 { font-size: 22px; color: #1e3a8a; text-align: center; }
+        p  { color: #555; text-align: center; font-size: 14px; max-width: 420px; }
+        #chatbot-container {
+            width: 100%;
+            max-width: 420px;
+            height: 580px;
             border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 12px 48px rgba(30, 58, 138, 0.2);
+            box-shadow: 0 12px 48px rgba(30, 58, 138, 0.18);
+            background: #fff;
         }
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        .back {
-            font-size: 13px;
-            color: #888;
-        }
+        .back { font-size: 13px; color: #888; }
         .back a { color: #1e3a8a; text-decoration: none; }
     </style>
 </head>
 <body>
     <h1>Nexo – KI-Assistent von EPPCOM</h1>
-    <p>Teste unseren KI-Sprachassistenten. Klicke auf das Mikrofon und stelle eine Frage.</p>
+    <p>Stelle eine Frage zu KI-Automatisierung, unseren Paketen oder vereinbare direkt einen Termin.</p>
 
-    <div class="widget-container">
-        <iframe
-            src="https://appdb.eppcom.de/voice-widget"
-            allow="microphone"
-            title="EPPCOM Voicebot"
-        ></iframe>
-    </div>
+    <div id="chatbot-container"></div>
 
     <p class="back"><a href="https://www.eppcom.de">&larr; Zurück zur Website</a></p>
+
+    <script type="module">
+        import Typebot from "https://cdn.jsdelivr.net/npm/@typebot.io/js@0.3/dist/web.js";
+        Typebot.initContainer({
+            typebot: "eppcom-chatbot-v2",
+            apiHost: "https://bot.eppcom.de",
+            container: document.getElementById("chatbot-container"),
+            theme: {
+                chatWindow: { backgroundColor: "#FFFFFF" }
+            }
+        });
+    </script>
 </body>
 </html>
