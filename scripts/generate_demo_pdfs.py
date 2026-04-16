@@ -8,7 +8,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 
-OUTPUT_DIR = "/root/marcello2304/demo_docs"
+OUTPUT_DIR = "/root/eppcom/demo_docs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 styles = getSampleStyleSheet()

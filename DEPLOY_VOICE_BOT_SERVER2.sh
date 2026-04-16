@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_DIR="/root/marcello2304"
+PROJECT_DIR="/root/eppcom"
 DOCKER_COMPOSE_FILE="$PROJECT_DIR/docker/compose-server2.yml"
 ENV_FILE="$PROJECT_DIR/.env.server2"
 

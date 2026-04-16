@@ -105,7 +105,7 @@ def test_all_unit_tests_still_pass():
 
 
 if __name__ == "__main__":
-    os.chdir("/root/marcello2304/voice-agent")
+    os.chdir("/root/eppcom/voice-agent")
 
     print("\n" + "="*70)
     print("LOCAL WHISPER STT INTEGRATION TEST")
