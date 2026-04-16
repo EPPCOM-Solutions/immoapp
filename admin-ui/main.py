@@ -53,8 +53,9 @@ S3_BUCKET   = os.getenv("S3_BUCKET",     "rag-platform-prod")
 S3_KEY      = os.getenv("S3_ACCESS_KEY", "")
 S3_SECRET   = os.getenv("S3_SECRET_KEY", "")
 S3_REGION   = os.getenv("S3_REGION",     "eu-central-003")
-N8N_URL     = os.getenv("N8N_URL",       "https://workflows.eppcom.de")
-OLLAMA_URL  = os.getenv("OLLAMA_URL",    "http://10.0.0.3:11434")
+N8N_URL          = os.getenv("N8N_URL",          "https://workflows.eppcom.de")
+OLLAMA_URL       = os.getenv("OLLAMA_URL",       "http://10.0.0.3:11434")
+OPENROUTER_KEY   = os.getenv("OPENROUTER_API_KEY", "")
 EMBED_MODEL = os.getenv("EMBED_MODEL",   "qwen3-embedding:0.6b")
 EMBED_DIM   = int(os.getenv("EMBED_DIM", "1024"))
 
@@ -2144,6 +2145,42 @@ async def public_chat(request: Request):
         "chunks_used": chunks_used,
         "latency_ms": elapsed,
     }
+
+
+# ── Öffentlicher LLM-Chat-Proxy (OpenRouter / Ollama) ───────────────────────
+@app.post("/api/public/llm-chat")
+async def public_llm_chat(request: Request):
+    """Proxy für Modell-Auswahl im Widget. Kein Auth nötig (public)."""
+    body = await request.json()
+    messages = body.get("messages", [])
+    model = body.get("model", "gemma")
+
+    if not messages:
+        raise HTTPException(400, "messages darf nicht leer sein")
+
+    if model == "gemma":
+        if not OPENROUTER_KEY:
+            raise HTTPException(503, "OpenRouter nicht konfiguriert")
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_KEY}",
+                    "HTTP-Referer": "https://eppcom.de",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "google/gemma-3-4b-it:free",
+                    "messages": messages,
+                    "max_tokens": 512,
+                    "temperature": 0.7,
+                },
+            )
+        resp.raise_for_status()
+        data = resp.json()
+        return {"reply": data["choices"][0]["message"]["content"]}
+
+    raise HTTPException(400, f"Unbekanntes Modell: {model}")
 
 
 # ── Conversations Admin-Endpoint ─────────────────────────────────────────────
