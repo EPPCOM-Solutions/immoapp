@@ -219,7 +219,7 @@ export function filterProperties(properties: Property[], settings: SearchSetting
 }
 
 export async function aggregateProperties(settings: SearchSettings): Promise<Property[]> {
-  const { locations, portals, intent, propertyType, provisionsfrei, radius } = settings;
+  const { locations, activePortals: portals, intent, propertyType, provisionsfrei, radius } = settings;
   const promises: Promise<Property[]>[] = [];
 
   locations.forEach(loc => {
