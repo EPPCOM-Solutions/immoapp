@@ -2147,7 +2147,15 @@ async def public_chat(request: Request):
     }
 
 
-# ── Öffentlicher LLM-Chat-Proxy (OpenRouter / Ollama) ───────────────────────
+# ── Öffentlicher LLM-Chat-Proxy (OpenRouter) ────────────────────────────────
+_OPENROUTER_MODELS: dict[str, str] = {
+    "gemma":    "google/gemma-3-4b-it:free",
+    "llama":    "meta-llama/llama-3.1-8b-instruct:free",
+    "mistral":  "mistralai/mistral-7b-instruct:free",
+    "qwen":     "qwen/qwen3-8b:free",
+    "deepseek": "deepseek/deepseek-chat-v3-0324:free",
+}
+
 @app.post("/api/public/llm-chat")
 async def public_llm_chat(request: Request):
     """Proxy für Modell-Auswahl im Widget. Kein Auth nötig (public)."""
@@ -2157,30 +2165,29 @@ async def public_llm_chat(request: Request):
 
     if not messages:
         raise HTTPException(400, "messages darf nicht leer sein")
+    if model not in _OPENROUTER_MODELS:
+        raise HTTPException(400, f"Unbekanntes Modell: {model}")
+    if not OPENROUTER_KEY:
+        raise HTTPException(503, "OpenRouter nicht konfiguriert")
 
-    if model == "gemma":
-        if not OPENROUTER_KEY:
-            raise HTTPException(503, "OpenRouter nicht konfiguriert")
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_KEY}",
-                    "HTTP-Referer": "https://eppcom.de",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "google/gemma-3-4b-it:free",
-                    "messages": messages,
-                    "max_tokens": 512,
-                    "temperature": 0.7,
-                },
-            )
-        resp.raise_for_status()
-        data = resp.json()
-        return {"reply": data["choices"][0]["message"]["content"]}
-
-    raise HTTPException(400, f"Unbekanntes Modell: {model}")
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_KEY}",
+                "HTTP-Referer": "https://eppcom.de",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": _OPENROUTER_MODELS[model],
+                "messages": messages,
+                "max_tokens": 512,
+                "temperature": 0.7,
+            },
+        )
+    resp.raise_for_status()
+    data = resp.json()
+    return {"reply": data["choices"][0]["message"]["content"]}
 
 
 # ── Conversations Admin-Endpoint ─────────────────────────────────────────────

@@ -1,6 +1,6 @@
 <?php
 /**
- * EPPCOM Chatbot Widget – Typebot + Modell-Auswahl (Nexo / Gemma 4 3B)
+ * EPPCOM Chatbot Widget – Typebot + Multi-Model-Auswahl via OpenRouter
  * Dieses File auf dem Website-Server hochladen (www.eppcom.de/test.php).
  */
 ?>
@@ -24,26 +24,31 @@
             gap: 16px;
         }
         h1 { font-size: 22px; color: #1e3a8a; text-align: center; }
-        p  { color: #555; text-align: center; font-size: 14px; max-width: 420px; }
+        p  { color: #555; text-align: center; font-size: 14px; max-width: 480px; }
 
         /* Modell-Tabs */
         .model-tabs {
             display: flex;
-            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
             background: #e0e7ff;
-            border-radius: 12px;
-            padding: 4px;
+            border-radius: 14px;
+            padding: 5px;
+            max-width: 480px;
+            width: 100%;
         }
         .model-tab {
-            padding: 8px 18px;
+            padding: 7px 14px;
             border: none;
             border-radius: 9px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             background: transparent;
             color: #4b5563;
             transition: all 0.2s;
+            white-space: nowrap;
         }
         .model-tab.active {
             background: #fff;
@@ -54,7 +59,7 @@
         /* Chat-Container */
         #chatbot-container {
             width: 100%;
-            max-width: 420px;
+            max-width: 480px;
             height: 580px;
             border-radius: 20px;
             overflow: hidden;
@@ -65,9 +70,9 @@
         }
         #typebot-wrapper { width: 100%; height: 100%; }
 
-        /* Gemma Custom Chat */
-        #gemma-chat { display: none; flex-direction: column; height: 100%; }
-        #gemma-messages {
+        /* LLM Custom Chat */
+        #llm-chat { display: none; flex-direction: column; height: 100%; }
+        #llm-messages {
             flex: 1;
             overflow-y: auto;
             padding: 16px;
@@ -76,8 +81,8 @@
             gap: 10px;
         }
         .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; }
-        .msg.user { align-self: flex-end; background: #1e3a8a; color: #fff; border-bottom-right-radius: 4px; }
-        .msg.bot  { align-self: flex-start; background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
+        .msg.user  { align-self: flex-end; background: #1e3a8a; color: #fff; border-bottom-right-radius: 4px; }
+        .msg.bot   { align-self: flex-start; background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
         .msg.typing { color: #94a3b8; font-style: italic; }
         .model-badge {
             padding: 4px 12px;
@@ -89,13 +94,13 @@
             background: #dcfce7;
             color: #166534;
         }
-        #gemma-form {
+        #llm-form {
             display: flex;
             gap: 8px;
             padding: 12px;
             border-top: 1px solid #e2e8f0;
         }
-        #gemma-input {
+        #llm-input {
             flex: 1;
             padding: 10px 14px;
             border: 1px solid #cbd5e1;
@@ -103,8 +108,8 @@
             font-size: 14px;
             outline: none;
         }
-        #gemma-input:focus { border-color: #1e3a8a; }
-        #gemma-send {
+        #llm-input:focus { border-color: #1e3a8a; }
+        #llm-send {
             padding: 10px 16px;
             background: #1e3a8a;
             color: #fff;
@@ -114,7 +119,7 @@
             font-size: 14px;
             font-weight: 500;
         }
-        #gemma-send:disabled { opacity: 0.5; cursor: not-allowed; }
+        #llm-send:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .back { font-size: 13px; color: #888; }
         .back a { color: #1e3a8a; text-decoration: none; }
@@ -127,7 +132,11 @@
     <!-- Modell-Auswahl -->
     <div class="model-tabs">
         <button class="model-tab active" onclick="switchModel('nexo', this)">Nexo (Standard)</button>
-        <button class="model-tab" onclick="switchModel('gemma', this)">Gemma 4 3B (Free)</button>
+        <button class="model-tab" onclick="switchModel('gemma', this)">Gemma 3 4B</button>
+        <button class="model-tab" onclick="switchModel('llama', this)">Llama 3.1 8B</button>
+        <button class="model-tab" onclick="switchModel('mistral', this)">Mistral 7B</button>
+        <button class="model-tab" onclick="switchModel('qwen', this)">Qwen3 8B</button>
+        <button class="model-tab" onclick="switchModel('deepseek', this)">DeepSeek V3</button>
     </div>
 
     <!-- Chat-Bereich -->
@@ -135,15 +144,13 @@
         <!-- Typebot (Nexo) -->
         <div id="typebot-wrapper"></div>
 
-        <!-- Gemma Custom Chat -->
-        <div id="gemma-chat">
-            <div class="model-badge">Google Gemma 3 4B · via OpenRouter (kostenlos)</div>
-            <div id="gemma-messages">
-                <div class="msg bot">Hallo! Ich bin Gemma, ein Open-Source-Modell von Google. Wie kann ich dir helfen?</div>
-            </div>
-            <form id="gemma-form" onsubmit="sendGemma(event)">
-                <input id="gemma-input" type="text" placeholder="Nachricht eingeben…" autocomplete="off" />
-                <button id="gemma-send" type="submit">Senden</button>
+        <!-- OpenRouter LLM Chat (alle Nicht-Nexo-Modelle) -->
+        <div id="llm-chat">
+            <div class="model-badge" id="llm-badge"></div>
+            <div id="llm-messages"></div>
+            <form id="llm-form" onsubmit="sendLLM(event)">
+                <input id="llm-input" type="text" placeholder="Nachricht eingeben…" autocomplete="off" />
+                <button id="llm-send" type="submit">Senden</button>
             </form>
         </div>
     </div>
@@ -175,38 +182,71 @@
 
     <script>
         const CHAT_API = "https://appdb.eppcom.de/api/public/llm-chat";
-        const gemmaHistory = [];
+
+        const MODELS = {
+            gemma:    { label: "Google Gemma 3 4B · via OpenRouter (kostenlos)",   greeting: "Hallo! Ich bin Gemma, ein Open-Source-Modell von Google. Wie kann ich helfen?" },
+            llama:    { label: "Meta Llama 3.1 8B · via OpenRouter (kostenlos)",    greeting: "Hi! Ich bin Llama, Metas Open-Source-Modell. Was kann ich für dich tun?" },
+            mistral:  { label: "Mistral 7B Instruct · via OpenRouter (kostenlos)",  greeting: "Hallo! Ich bin Mistral, ein effizientes KI-Modell. Wie kann ich helfen?" },
+            qwen:     { label: "Alibaba Qwen3 8B · via OpenRouter (kostenlos)",     greeting: "Hallo! Ich bin Qwen3 von Alibaba. Wie kann ich dir helfen?" },
+            deepseek: { label: "DeepSeek V3 · via OpenRouter (kostenlos)",          greeting: "Hallo! Ich bin DeepSeek V3. Wie kann ich dir helfen?" },
+        };
+
+        const histories = {};
+        const renderedMessages = {};
+        let currentModel = null;
 
         function switchModel(model, btn) {
             document.querySelectorAll(".model-tab").forEach(t => t.classList.remove("active"));
             btn.classList.add("active");
 
             const wrapper = document.getElementById("typebot-wrapper");
-            const gemmaChat = document.getElementById("gemma-chat");
+            const llmChat = document.getElementById("llm-chat");
 
             if (model === "nexo") {
-                gemmaChat.style.display = "none";
+                llmChat.style.display = "none";
                 wrapper.style.display = "block";
                 if (window._typebotStart) window._typebotStart();
-            } else {
-                if (window._typebotStop) window._typebotStop();
-                wrapper.style.display = "none";
-                gemmaChat.style.display = "flex";
-                document.getElementById("gemma-input").focus();
+                currentModel = null;
+                return;
             }
+
+            if (window._typebotStop) window._typebotStop();
+            wrapper.style.display = "none";
+            llmChat.style.display = "flex";
+            currentModel = model;
+
+            document.getElementById("llm-badge").textContent = MODELS[model].label;
+
+            if (!renderedMessages[model]) {
+                renderedMessages[model] = [];
+                histories[model] = [];
+                const greetEl = document.createElement("div");
+                greetEl.className = "msg bot";
+                greetEl.textContent = MODELS[model].greeting;
+                renderedMessages[model].push(greetEl);
+            }
+            const msgContainer = document.getElementById("llm-messages");
+            msgContainer.innerHTML = "";
+            renderedMessages[model].forEach(el => msgContainer.appendChild(el));
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+
+            document.getElementById("llm-input").focus();
         }
 
-        async function sendGemma(e) {
+        async function sendLLM(e) {
             e.preventDefault();
-            const input = document.getElementById("gemma-input");
+            if (!currentModel) return;
+            const input = document.getElementById("llm-input");
             const text = input.value.trim();
             if (!text) return;
 
             input.value = "";
-            addMsg(text, "user");
-            gemmaHistory.push({ role: "user", content: text });
 
-            const sendBtn = document.getElementById("gemma-send");
+            const userEl = addMsg(text, "user");
+            renderedMessages[currentModel].push(userEl);
+            histories[currentModel].push({ role: "user", content: text });
+
+            const sendBtn = document.getElementById("llm-send");
             sendBtn.disabled = true;
             const typingEl = addMsg("Schreibt…", "bot typing");
 
@@ -214,16 +254,18 @@
                 const resp = await fetch(CHAT_API, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ model: "gemma", messages: gemmaHistory })
+                    body: JSON.stringify({ model: currentModel, messages: histories[currentModel] })
                 });
                 const data = await resp.json();
                 const reply = data.reply || "Keine Antwort erhalten.";
                 typingEl.textContent = reply;
                 typingEl.classList.remove("typing");
-                gemmaHistory.push({ role: "assistant", content: reply });
+                renderedMessages[currentModel].push(typingEl);
+                histories[currentModel].push({ role: "assistant", content: reply });
             } catch (err) {
                 typingEl.textContent = "Verbindungsfehler – bitte erneut versuchen.";
                 typingEl.classList.remove("typing");
+                renderedMessages[currentModel].push(typingEl);
             } finally {
                 sendBtn.disabled = false;
                 input.focus();
@@ -231,7 +273,7 @@
         }
 
         function addMsg(text, cls) {
-            const messages = document.getElementById("gemma-messages");
+            const messages = document.getElementById("llm-messages");
             const el = document.createElement("div");
             el.className = "msg " + cls;
             el.textContent = text;
