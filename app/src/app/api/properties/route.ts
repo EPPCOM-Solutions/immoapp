@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { SearchIntent, Property } from '../../../types/property';
-import { aggregateProperties } from '../../../lib/aggregator';
+import { aggregateProperties } from '@/lib/aggregator';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

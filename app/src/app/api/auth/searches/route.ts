@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyToken } from '../../../../lib/auth';
-import { getSearchesForUser, saveSearch, deleteSearch } from '../../../../lib/searches';
+import { verifyToken } from '@/lib/auth';
+import { getSearchesForUser, saveSearch, deleteSearch } from '@/lib/searches';
 
 export async function GET() {
   const cookieStore = cookies();

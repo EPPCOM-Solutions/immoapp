@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { query } from '../../../lib/db';
-import { hashPassword, verifyToken } from '../../../lib/auth';
+import { query } from '@/lib/db';
+import { hashPassword, verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
 // Helper to check admin access

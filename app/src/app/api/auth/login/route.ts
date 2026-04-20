@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { query, initDb } from '../../../lib/db';
-import { verifyPassword, signToken, seedSuperUser } from '../../../lib/auth';
+import { query, initDb } from '@/lib/db';
+import { verifyPassword, signToken, seedSuperUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {

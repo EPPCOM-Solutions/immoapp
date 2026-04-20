@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { query } from '../../../lib/db';
-import { hashPassword } from '../../../lib/auth';
+import { query } from '@/lib/db';
+import { hashPassword } from '@/lib/auth';
 import nodemailer from 'nodemailer';
 
 export async function POST(request: Request) {

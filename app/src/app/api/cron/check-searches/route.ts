@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAllActiveSearches, updateLastCheck } from '../../../../lib/searches';
-import { aggregateProperties } from '../../../../lib/aggregator';
+import { getAllActiveSearches, updateLastCheck } from '@/lib/searches';
+import { aggregateProperties } from '@/lib/aggregator';
 import nodemailer from 'nodemailer';
 
 export async function GET(request: Request) {
