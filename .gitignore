@@ -6,3 +6,4 @@ diagnose-output.txt
 *.log
 __pycache__/
 *.pyc
+auth_users.json
