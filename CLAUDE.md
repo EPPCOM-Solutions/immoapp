@@ -1,10 +1,13 @@
 # EPPCOM Platform — Claude Code Context
 
-## Projekt-Pfade
-- Server Repo: /root/eppcom/
-- Deployment: /opt/rag-platform/
-- Homepage: /home/coder/homepage/
-- LivingMatch App: /home/coder/livingmatch/
+## GitHub Repos
+- **immoapp** → LivingMatch App (app/, voice-agent/, admin-ui/, rag-knowledge/)
+- **eppcom-projects** → Platform-Infrastruktur (docker/, sql/, n8n/, scripts/, docs/, eppcom-homepage/, jitsi-meet/)
+- **eppcom-ai-automation** → AI/Voicebot-Automatisierung
+
+## Lokale Pfade (Code-Server)
+- Aktives Repo: /home/coder/eppcom (→ immoapp)
+- AI Automation: /home/coder/projects/eppcom-ai-automation
 
 ## Server
 - Server 1: 94.130.170.167 (alle Services via Coolify)
