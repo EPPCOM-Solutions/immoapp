@@ -36,7 +36,7 @@ export async function updateLastCheck(id: number) {
   await query('UPDATE livingmatch_searches SET last_check = CURRENT_TIMESTAMP WHERE id = $1', [id]);
 }
 
-export async function getAllActiveSearches(): Promise<SavedSearch[]> {
+export async function getAllActiveSearches(): Promise<(SavedSearch & { email: string })[]> {
   const { rows } = await query(
     'SELECT s.*, u.email FROM livingmatch_searches s JOIN livingmatch_users u ON s.user_id = u.id WHERE s.is_active = TRUE'
   );
