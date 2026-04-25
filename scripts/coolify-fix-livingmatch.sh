@@ -23,6 +23,13 @@ DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 
 # ---------- Setup ----------
+if ! command -v jq &>/dev/null; then
+  echo "FEHLER: 'jq' nicht installiert."
+  echo "  macOS:   brew install jq"
+  echo "  Ubuntu:  sudo apt-get install jq"
+  exit 1
+fi
+
 if [[ ! -f "$HOME/.coolify-env" ]]; then
   echo "FEHLER: ~/.coolify-env nicht gefunden. Lege die Datei an mit:"
   echo "  COOLIFY_URL=https://coolify.eppcom.de"
