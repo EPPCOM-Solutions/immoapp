@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server';
-import { query } from '../../../lib/db';
-import { hashPassword, verifyToken } from '../../../lib/auth';
+import { query } from '../../../../lib/db';
+import { hashPassword, verifyToken } from '../../../../lib/auth';
 import { cookies } from 'next/headers';
 
 // Helper to check admin access
-function checkAdminAccess() {
-  const cookieStore = cookies();
+async function checkAdminAccess() {
+  const cookieStore = await cookies();
   const token = cookieStore.get('lm_auth_token')?.value;
   if (!token) return null;
-   
+
   const user = verifyToken(token);
   if (!user || user.role !== 'admin') return null;
   return user;
 }
 
 export async function GET() {
-  if (!checkAdminAccess()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!(await checkAdminAccess())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
      const { rows } = await query('SELECT id, email, role, created_at FROM livingmatch_users ORDER BY id ASC');
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!checkAdminAccess()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!(await checkAdminAccess())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
      const { email, password, role } = await request.json();
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  if (!checkAdminAccess()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!(await checkAdminAccess())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
      const { id, role, password } = await request.json();
@@ -66,7 +66,7 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!checkAdminAccess()) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!(await checkAdminAccess())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
      const { searchParams } = new URL(request.url);

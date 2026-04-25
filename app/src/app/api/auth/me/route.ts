@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { query } from '../../../lib/db';
-import { verifyToken, hashPassword } from '../../../lib/auth';
+import { query } from '../../../../lib/db';
+import { verifyToken, hashPassword } from '../../../../lib/auth';
 import { cookies } from 'next/headers';
 
 export async function GET() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('lm_auth_token')?.value;
   
   if (!token) return NextResponse.json({ authenticated: false }, { status: 401 });
@@ -16,7 +16,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('lm_auth_token')?.value;
   
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

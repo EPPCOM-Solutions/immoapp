@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { query, initDb } from '../../../lib/db';
-import { verifyPassword, signToken, seedSuperUser } from '../../../lib/auth';
+import { query, initDb } from '../../../../lib/db';
+import { verifyPassword, signToken, seedSuperUser } from '../../../../lib/auth';
 import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     const token = signToken({ userId: user.id, email: user.email, role: user.role });
     
     // Set HTTP-only cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set('lm_auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
