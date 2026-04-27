@@ -64,7 +64,7 @@ RAG_TENANT_ID = os.getenv("RAG_TENANT_ID", "a0000000-0000-0000-0000-000000000001
 
 # Voice Agent Configuration
 VAD_THRESHOLD = float(os.getenv("VAD_THRESHOLD", "0.5"))
-VAD_SILENCE_DURATION_MS = int(os.getenv("VAD_SILENCE_DURATION_MS", "300"))
+VAD_SILENCE_DURATION_MS = int(os.getenv("VAD_SILENCE_DURATION_MS", "250"))
 
 # Streaming
 VOICEBOT_STREAMING_ENABLED = os.getenv("VOICEBOT_STREAMING_ENABLED", "true").lower() == "true"
@@ -100,7 +100,7 @@ async def fetch_rag_context(query: str) -> Optional[str]:
         return _rag_cache[query_hash]
 
     try:
-        async with httpx.AsyncClient(timeout=1.0) as client:
+        async with httpx.AsyncClient(timeout=0.8) as client:
             response = await client.post(RAG_WEBHOOK_URL, json={
                 "tenant_id": RAG_TENANT_ID,
                 "query": query,
@@ -121,7 +121,7 @@ async def fetch_rag_context(query: str) -> Optional[str]:
             logger.debug(f"RAG: no answer in response keys: {list(data.keys())}")
             return None
     except asyncio.TimeoutError:
-        logger.warning("RAG timeout (1.5s) — proceeding without context")
+        logger.warning("RAG timeout (0.8s) — proceeding without context")
         return None
     except Exception as e:
         logger.warning(f"RAG fetch failed: {e}")

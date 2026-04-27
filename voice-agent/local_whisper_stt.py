@@ -88,7 +88,8 @@ class LocalWhisperSTT(STT):
         segments, info = self._whisper.transcribe(
             audio_array,
             language="de",
-            beam_size=2,                     # Kompromiss Speed/Qualität
+            beam_size=1,                     # Greedy decoding — ~400ms schneller auf CPU
+            best_of=1,                       # Kein resampling → weiterer Speed-Gewinn
             vad_filter=True,
             no_speech_threshold=0.7,
             log_prob_threshold=-1.0,
