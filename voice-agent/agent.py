@@ -11,8 +11,10 @@ Target: <3s End-to-End (STT→LLM→TTS)
 """
 import asyncio
 import hashlib
+import json
 import logging
 import os
+import re
 from typing import AsyncIterable, Optional
 
 import httpx
@@ -61,6 +63,9 @@ OPENAI_TTS_ENABLED = bool(OPENAI_API_KEY_EXPLICIT and not OPENAI_API_KEY_EXPLICI
 RAG_WEBHOOK_URL = os.getenv("RAG_WEBHOOK_URL", "")
 RAG_WEBHOOK_SECRET = os.getenv("RAG_WEBHOOK_SECRET", "")
 RAG_TENANT_ID = os.getenv("RAG_TENANT_ID", "a0000000-0000-0000-0000-000000000001")
+RAG_CACHE_FILE = os.getenv("RAG_CACHE_FILE", "/tmp/rag_cache.json")
+RAG_PREWARM_ENABLED = os.getenv("RAG_PREWARM_ENABLED", "true").lower() == "true"
+RAG_PREWARM_TIMEOUT_S = float(os.getenv("RAG_PREWARM_TIMEOUT_S", "60"))
 
 # Voice Agent Configuration
 VAD_THRESHOLD = float(os.getenv("VAD_THRESHOLD", "0.5"))
@@ -86,21 +91,85 @@ Eppkom Solutions entwickelt KI-Chatbots, Voicebots und automatisiert Geschäftsp
 
 
 # ─── RAG Context Caching ───────────────────────────────────────────────
+# Persistent on disk (survives container restarts) + normalized keys
+# (so "Was kostet das?" and "was kostet das" share a cache entry).
 _rag_cache: dict[str, str] = {}
 
 
-async def fetch_rag_context(query: str) -> Optional[str]:
-    """Fetch RAG context from n8n webhook. Cached per query."""
+def _normalize_query(query: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace."""
+    q = query.lower().strip()
+    q = re.sub(r"[^\w\säöüß]", " ", q, flags=re.UNICODE)
+    q = re.sub(r"\s+", " ", q)
+    return q
+
+
+def _query_hash(query: str) -> str:
+    return hashlib.md5(_normalize_query(query).encode()).hexdigest()
+
+
+def _load_rag_cache() -> None:
+    """Load persisted cache from disk on startup. Best-effort."""
+    global _rag_cache
+    try:
+        if os.path.exists(RAG_CACHE_FILE):
+            with open(RAG_CACHE_FILE, "r", encoding="utf-8") as f:
+                _rag_cache = json.load(f)
+            logger.info(f"RAG cache loaded: {len(_rag_cache)} entries from {RAG_CACHE_FILE}")
+    except Exception as e:
+        logger.warning(f"RAG cache load failed: {e}")
+        _rag_cache = {}
+
+
+def _persist_rag_cache() -> None:
+    """Write cache to disk. Best-effort, non-blocking-friendly."""
+    try:
+        tmp = RAG_CACHE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(_rag_cache, f, ensure_ascii=False)
+        os.replace(tmp, RAG_CACHE_FILE)
+    except Exception as e:
+        logger.warning(f"RAG cache persist failed: {e}")
+
+
+# Common customer queries — pre-warmed on startup so the 0.8s voice timeout
+# almost always hits the cache instead of waiting for the slow 17-50s webhook.
+PREWARM_QUERIES = [
+    "Was ist Eppkom?",
+    "Wer ist der Gründer?",
+    "Wie kann ich euch kontaktieren?",
+    "Was kostet ein Chatbot?",
+    "Was kostet ein Voicebot?",
+    "Welche Branchen unterstützt ihr?",
+    "Wie lange dauert die Einführung?",
+    "Wie funktioniert RAG?",
+    "Welche Sprachen werden unterstützt?",
+    "Habt ihr Referenzkunden?",
+    "Wie steht es um Datenschutz und DSGVO?",
+    "Wo werden die Daten gespeichert?",
+    "Welche Vertragslaufzeit gibt es?",
+    "Wie kann ich kündigen?",
+    "Welcher Support ist enthalten?",
+    "Was ist der Unterschied zu ChatGPT?",
+    "Was passiert wenn der Bot etwas nicht weiß?",
+    "Bietet ihr eine Live-Demo an?",
+    "Wie sieht ein Erstgespräch aus?",
+    "Brauche ich ein eigenes IT-Team?",
+]
+
+
+async def fetch_rag_context(query: str, timeout: float = 0.8) -> Optional[str]:
+    """Fetch RAG context from n8n webhook. Cached per normalized query."""
     if not RAG_WEBHOOK_URL:
         return None
 
-    query_hash = hashlib.md5(query.encode()).hexdigest()
-    if query_hash in _rag_cache:
-        logger.debug(f"RAG cache HIT: {query_hash[:8]}")
-        return _rag_cache[query_hash]
+    qhash = _query_hash(query)
+    if qhash in _rag_cache:
+        logger.debug(f"RAG cache HIT: {qhash[:8]}")
+        return _rag_cache[qhash]
 
     try:
-        async with httpx.AsyncClient(timeout=0.8) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(RAG_WEBHOOK_URL, json={
                 "tenant_id": RAG_TENANT_ID,
                 "query": query,
@@ -114,18 +183,41 @@ async def fetch_rag_context(query: str) -> Optional[str]:
                 answer = (data.get("answer") or data.get("response")
                           or data.get("system_prompt") or data.get("context") or "")
                 if answer:
-                    _rag_cache[query_hash] = answer
+                    _rag_cache[qhash] = answer
+                    _persist_rag_cache()
                     logger.info(f"RAG: {len(answer)} chars fetched and cached")
                     return answer
 
             logger.debug(f"RAG: no answer in response keys: {list(data.keys())}")
             return None
-    except asyncio.TimeoutError:
-        logger.warning("RAG timeout (0.8s) — proceeding without context")
+    except (asyncio.TimeoutError, httpx.TimeoutException):
+        logger.warning(f"RAG timeout ({timeout}s) — proceeding without context")
         return None
     except Exception as e:
         logger.warning(f"RAG fetch failed: {e}")
         return None
+
+
+async def prewarm_rag_cache() -> None:
+    """Fire pre-warm queries with a generous timeout so the cache fills.
+    Runs as a background task — does not block agent startup."""
+    if not RAG_WEBHOOK_URL or not RAG_PREWARM_ENABLED:
+        return
+    missing = [q for q in PREWARM_QUERIES if _query_hash(q) not in _rag_cache]
+    if not missing:
+        logger.info(f"RAG pre-warm skipped: all {len(PREWARM_QUERIES)} queries cached")
+        return
+    logger.info(f"RAG pre-warm: fetching {len(missing)} of {len(PREWARM_QUERIES)} queries")
+    for q in missing:
+        try:
+            await fetch_rag_context(q, timeout=RAG_PREWARM_TIMEOUT_S)
+        except Exception as e:
+            logger.warning(f"RAG pre-warm failed for '{q[:40]}': {e}")
+    logger.info(f"RAG pre-warm done: {len(_rag_cache)} entries cached")
+
+
+# Load persisted cache at import time.
+_load_rag_cache()
 
 
 # ─── Think-Tag Filter (qwen3 always emits <think></think> prefix) ───────
@@ -327,6 +419,10 @@ class NexoStreamingAgent(Agent):
 async def entrypoint(ctx: JobContext):
     await ctx.connect()
     logger.info(f"Connected to room: {ctx.room.name}")
+
+    # Kick off RAG pre-warm in the background — does not block this session,
+    # but populates the disk cache so the next sessions hit cached answers.
+    asyncio.create_task(prewarm_rag_cache())
 
     configured_voice = await _fetch_voice_id()
 

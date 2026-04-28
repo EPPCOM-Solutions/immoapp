@@ -1,11 +1,11 @@
-# EPPCOM Branchen-Spezifische Use Cases
+# Eppkom Branchen-Spezifische Use Cases
 
 ## Gesundheitswesen & Medizin
 
 ### Szenario: Arztpraxis mit 3 Ärzten, 2000 Patienten
 **Problem**: Anrufe für Terminvereinbarungen blockieren 40% der Arbeitszeit der MFAs (Medizinische Fachangestellte).
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Voicebot am Telefon nimmt Terminwünsche entgegen
 - RAG-Zugriff auf Praxis-Kalender (via n8n und Praxissoftware-API)
 - Bot prüft Verfügbarkeit, bietet 3 Optionen an
@@ -21,7 +21,7 @@
 ### Szenario: Krankenhaus mit 500 Betten
 **Problem**: Patienten und Angehörige rufen wegen Besuchszeiten, Parkplatz-Info, Abteilungs-Standorten an.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - 24/7 Info-Hotline über Voicebot
 - RAG-Datenbank mit: Besuchszeiten, Wegbeschreibungen, FAQ zu Aufnahme/Entlassung
 - Automatische Weiterleitung zu Notaufnahme bei medizinischen Notfällen
@@ -33,7 +33,7 @@
 ### Szenario: Online-Shop mit 5000 Produkten
 **Problem**: 60% der Support-Anfragen sind repetitiv (Versand, Rücksendung, Größen).
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Chatbot auf Website mit RAG-Zugriff auf Produktdatenbank + FAQ
 - Automatische Antworten zu: Lieferzeit, Größentabellen, Retourenprozess
 - Bei Eskalation: Nahtlose Übergabe an menschlichen Support mit Kontext
@@ -48,7 +48,7 @@
 ### Szenario: Fashion E-Commerce mit internationalen Kunden
 **Problem**: Größentabellen variieren (US/EU/UK), viele Rückfragen vor Kauf.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Multilingualer Chatbot (DE/EN/FR)
 - RAG mit Größentabellen, Material-Pflegehinweisen, Style-Guides
 - Produktempfehlungen basierend auf Körpermaßen
@@ -60,7 +60,7 @@
 ### Szenario: Maschinen-Hersteller mit 200 Servicetechnikern
 **Problem**: Techniker rufen bei Störungen in der Zentrale an - Wartezeiten, kein 24/7-Support.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Voicebot als First-Level-Diagnose-Hotline
 - RAG-Zugriff auf Wartungshandbücher, Fehlercode-Datenbanken
 - Bot führt Techniker durch Troubleshooting-Schritte
@@ -75,7 +75,7 @@
 ### Szenario: Logistik-Unternehmen mit Fuhrpark
 **Problem**: Fahrer rufen bei Routenfragen, Lieferadress-Problemen, Fahrzeug-Störungen an.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Voicebot für Fahrer (hands-free während Fahrt)
 - RAG mit: Routenplänen, Kunden-Adressen, Fahrzeug-Wartungsinfos
 - Integration mit Telematics-System für Echtzeit-Fahrzeugdaten
@@ -87,7 +87,7 @@
 ### Szenario: Hausverwaltung mit 500 Wohneinheiten
 **Problem**: Mieter rufen wegen Schlüsselverlust, Heizungsausfall, Müllabfuhr-Terminen an.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - 24/7 Voicebot für Standard-Anfragen
 - RAG mit: Hausordnung, Notdienst-Nummern, Müllabfuhr-Kalender
 - Automatische Ticket-Erstellung für Reparatur-Anfragen
@@ -97,7 +97,7 @@
 ### Szenario: Makler-Büro mit 200 aktiven Immobilien
 **Problem**: Interessenten rufen wegen Besichtigungsterminen, Exposés, Verfügbarkeit an.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Chatbot auf Website und WhatsApp
 - RAG mit aktuellen Immobilien-Exposés, Grundrissen, Lagebeschreibungen
 - Automatische Terminvereinbarung für Besichtigungen
@@ -110,7 +110,7 @@
 ### Szenario: Bank mit 50000 Kunden
 **Problem**: 70% der Hotline-Anrufe sind einfache Fragen (Kontostand, Karten-Sperrung, Überweisungslimit).
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Voicebot mit starker Authentifizierung (2FA)
 - RAG mit: Produkt-Infos (Kredite, Girokonten), Sicherheits-Guides
 - Eskalation zu menschlichem Berater bei komplexen Finanz-Themen
@@ -122,7 +122,7 @@
 ### Szenario: Versicherungsmakler mit 2000 Kunden
 **Problem**: Kunden fragen regelmäßig nach Deckungssummen, Kündigungsfristen, Schadensmeldungs-Prozessen.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Chatbot mit RAG-Zugriff auf Versicherungsbedingungen
 - Automatische Schadensmeldung mit Foto-Upload
 - Proaktive Erinnerungen: Vertragsverlängerungen, fehlende Unterlagen
@@ -134,7 +134,7 @@
 ### Szenario: Stadtverwaltung mit 50000 Einwohnern
 **Problem**: Bürger rufen wegen Öffnungszeiten, Antragsformularen, Zuständigkeiten an.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - 24/7 Bürger-Hotline mit Voicebot
 - RAG mit: Dienstleistungskatalog, Formulare, Zuständigkeits-Matrix
 - Mehrsprachig (DE/EN/TR/AR) für diverse Bevölkerung
@@ -144,7 +144,7 @@
 ### Szenario: Politischer Verband mit 5000 Mitgliedern
 **Problem**: Mitglieder fragen nach Positionen, Veranstaltungen, Mitgliedsbeiträgen.
 
-**EPPCOM-Lösung**:
+**Eppkom-Lösung**:
 - Chatbot auf Website mit RAG-Zugriff auf Positionspapiere, Satzung, Veranstaltungskalender
 - Automatische Mitglieder-Onboarding-Unterstützung
 - FAQ zu Beiträgen, Kündigungen, Engagement-Möglichkeiten
