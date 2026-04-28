@@ -73,16 +73,31 @@ Die App erstellt bei erstem Start automatisch:
 Initial-Passwort `n6rriabc!2` ist unsicher (aus Container-Logs lesbar).
 → Nach Login Passwort-Reset nutzen oder direkt in DB ändern.
 
-### 2. SSL-Zertifikat
-Traefik/Let's Encrypt provisioniert automatisch sobald:
-- Port 80 HTTP-01 Challenge erfolgreich ist
-- DNS stabil zeigt auf 46.224.54.65
+### 2. SSL-Zertifikat ✅ ERLEDIGT (2026-04-28)
+Let's Encrypt aktiv: `issuer=C = US, O = Let's Encrypt, CN = R13`
+Gültig bis: 2026-07-27.
 
-Status prüfen:
-```bash
-echo | openssl s_client -servername livingmatch.app -connect livingmatch.app:443 2>/dev/null | openssl x509 -noout -issuer
+### 2b. ⚠️ DNS-Delegation `.app` blockiert die Auflösung
+**Problem (2026-04-28):** `livingmatch.app` ist beim Registrar an fremde Nameserver delegiert:
 ```
-Ziel: `issuer=C = US, O = Let's Encrypt`
+ns1.emailverification.info
+ns2.emailverification.info
+```
+Diese liefern falsche A-Records (`94.23.162.163` / `54.38.220.85` — Domain-Parking), egal was in Hetzner Robot DNS steht. Die Hetzner-Records (`46.224.54.65`) wirken erst, wenn die NS umgestellt sind.
+
+**Fix:** Beim Registrar (wo `.app` gekauft wurde) Nameserver ändern auf:
+```
+ns1.your-server.de
+ns2.your-server.de
+ns3.your-server.de
+```
+
+**Workaround zum Testen** ohne NS-Umstellung — Mac-`/etc/hosts`:
+```
+46.224.54.65  livingmatch.app www.livingmatch.app
+```
+
+Vergleich: `livingmatch.de` ist korrekt auf Hetzner delegiert und erreicht Server 2.
 
 ### 3. Coolify Horizon-Queue Bug
 Deploys hängen manchmal in "queued". Fix:
