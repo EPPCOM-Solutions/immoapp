@@ -16,6 +16,12 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
   const [testingPortals, setTestingPortals] = useState<Record<string, 'testing' | 'success' | 'failed'>>({});
   const [authData, setAuthData] = useState<{email: string, role: string} | null>(null);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [pwModalOpen, setPwModalOpen] = useState(false);
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
 
   useEffect(() => {
      fetch('/api/auth/me').then(res => res.json()).then(data => {
@@ -48,19 +54,39 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
     window.location.href = '/login';
   };
 
+  const openPwModal = () => {
+    setPwNew('');
+    setPwConfirm('');
+    setPwError('');
+    setPwSuccess(false);
+    setPwModalOpen(true);
+  };
+
   const handleChangePassword = async () => {
-    const pw = prompt('Dein neues persönliches Passwort:');
-    if (!pw) return;
+    setPwError('');
+    if (pwNew.length < 8) { setPwError('Mindestens 8 Zeichen.'); return; }
+    if (pwNew !== pwConfirm) { setPwError('Passwörter stimmen nicht überein.'); return; }
+
+    setPwLoading(true);
     try {
       const res = await fetch('/api/auth/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw })
+        body: JSON.stringify({ password: pwNew })
       });
-      if (res.ok) alert('Passwort erfolgreich geändert.');
-      else alert('Fehler beim Ändern');
+      if (res.ok) {
+        setPwSuccess(true);
+        setPwNew('');
+        setPwConfirm('');
+        setTimeout(() => setPwModalOpen(false), 1500);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setPwError(data.error || 'Fehler beim Ändern.');
+      }
     } catch(e) {
-      alert('Netzwerkfehler');
+      setPwError('Netzwerkfehler');
+    } finally {
+      setPwLoading(false);
     }
   };
 
@@ -129,7 +155,7 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
                   <p className="text-stone-400 text-xs">{authData.email}</p>
                </div>
             </div>
-            <button onClick={handleChangePassword} className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-lg border border-stone-700 transition-colors">
+            <button onClick={openPwModal} className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs font-bold rounded-lg border border-stone-700 transition-colors">
               Passwort ändern
             </button>
           </div>
@@ -386,7 +412,7 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
       </div>
       
       <div className="p-6 bg-stone-950 border-t border-stone-800 shrink-0">
-        <button 
+        <button
           onClick={handleSave}
           className={`w-full p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${saved ? 'bg-orange-500 text-stone-900' : 'bg-stone-700 hover:bg-stone-600 text-white'}`}
         >
@@ -394,6 +420,74 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
           {saved ? 'Lokal Gespeichert!' : 'Daten lokal speichern'}
         </button>
       </div>
+
+      {pwModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-stone-950/90 backdrop-blur-sm flex items-center justify-center p-6" onClick={() => !pwLoading && setPwModalOpen(false)}>
+          <div className="bg-stone-900 border border-stone-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 bg-orange-500/20 rounded-full flex items-center justify-center">
+                <Lock className="w-5 h-5 text-orange-400" />
+              </div>
+              <h3 className="text-white text-lg font-bold">Passwort ändern</h3>
+            </div>
+
+            {pwError && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-xl mb-4">
+                {pwError}
+              </div>
+            )}
+            {pwSuccess && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm p-3 rounded-xl mb-4">
+                Passwort erfolgreich geändert.
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-1.5 block">Neues Passwort</label>
+                <input
+                  type="password"
+                  value={pwNew}
+                  onChange={e => setPwNew(e.target.value)}
+                  className="w-full bg-stone-950 border border-stone-700 focus:border-orange-500 rounded-xl p-3 text-white outline-none transition-all"
+                  placeholder="mindestens 8 Zeichen"
+                  autoFocus
+                  disabled={pwLoading || pwSuccess}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-1.5 block">Passwort bestätigen</label>
+                <input
+                  type="password"
+                  value={pwConfirm}
+                  onChange={e => setPwConfirm(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleChangePassword()}
+                  className="w-full bg-stone-950 border border-stone-700 focus:border-orange-500 rounded-xl p-3 text-white outline-none transition-all"
+                  placeholder="Wiederholung"
+                  disabled={pwLoading || pwSuccess}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setPwModalOpen(false)}
+                disabled={pwLoading}
+                className="flex-1 py-3 bg-stone-800 hover:bg-stone-700 text-stone-300 text-sm font-bold rounded-xl border border-stone-700 transition-colors disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleChangePassword}
+                disabled={pwLoading || pwSuccess || !pwNew || !pwConfirm}
+                className="flex-1 py-3 bg-orange-500 hover:bg-orange-400 text-stone-950 text-sm font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {pwLoading ? 'Lade…' : pwSuccess ? '✓ Geändert' : 'Speichern'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
