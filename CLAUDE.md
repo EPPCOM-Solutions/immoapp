@@ -57,3 +57,4 @@
 1. **CLAUDE.md** (diese Datei) — stabile Projekt-Regeln, Live-Daten, immer aktiv
 2. **`~/.claude/projects/-home-coder-eppcom/memory/`** — Auto-Memory, lädt automatisch in jedem Chat
 3. **`app/appdevelompentN.md`** — detaillierte Session-Logs (UUIDs, Befehle, Workarounds)
+4. **Obsidian-Vault** `/home/coder/obsidian-vault/` — alle Chat-Transcripte (Stop-Hook → GitHub `EPPCOM-Solutions/llm-chats`); MCP-Server `obsidian` für Lesezugriff in Sessions (`mcp__obsidian__*` Tools)
