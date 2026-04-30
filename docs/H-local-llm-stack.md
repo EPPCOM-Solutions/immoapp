@@ -41,8 +41,10 @@
 | Coder-Modell (lokal) | **GLM-4.7-Flash 30B-A3B** Q4_K_M (~17GB) | Nur 3B aktiv → schnell, neueste Generation, Familie-konsistent zum Architect |
 | Schnell-Backup (lokal) | **Qwen3-Coder-7B** (~5GB) | Tunnel-frei nutzbar bei Connectivity-Problemen, Trivial-Edits |
 | Embedding (lokal) | **nomic-embed-text** (~270MB) | Für Smart Connections / Obsidian RAG |
-| Architect-Modell (Cloud) | **GLM-4.7 Standard** via z.ai | $0.60/M In, niedrigvolumig im Plan-Mode |
+| Architect-Modell (Cloud) | **GLM-4.7 Standard** via z.ai | $0.60/M In, niedrigvolumig im Plan-Mode, Familie-konsistent zum lokalen Flash |
 | Power-Up (Cloud) | **GLM-5** via OpenRouter | Pay-per-use, nur seltene Hardcore-Architektur |
+| Cost-Saver Architect (alt.) | **DeepSeek-V3.x / V4** via OpenRouter | ~$0.27/M, nutzbar bei hohem Plan-Volumen wenn Familie-Konsistenz nebensächlich |
+| Reasoning-Spezialist (alt.) | **DeepSeek-R1 / V5-Reasoner** via OpenRouter | Algorithmen-/Math-/Performance-Probleme; lange Thought-Traces, in Cline-Loops behutsam einsetzen |
 | Router | **LiteLLM Proxy** | Einheitliche API, Fallbacks, Cost-Tracking, Logging |
 | Tunnel | **Cloudflare Named Tunnel** über `eppcom.de` | Persistent, kostenlos, Zero-Trust-fähig |
 | Frontend (code-server) | **Cline** | Plan/Act-Split, Multi-Profile-Support |
@@ -52,6 +54,8 @@
 
 **Entscheidung gegen reines Cline-Multi-Profile ohne LiteLLM:** LiteLLM bringt Cost-Dashboard, Provider-Fallbacks und ein einheitliches Log — bei drei Providern und Budget-Bewusstsein lohnt sich der Layer.
 
+**Entscheidung gegen DeepSeek als Default-Architect:** DeepSeek-V3+/V4 ist beim Coding ~auf GLM-4.7-Niveau und 2× billiger, aber (a) PRC-gehostet → Datenresidenz-Bedenken bei LivingMatch-Code mit Personenbezug, (b) bricht Plan/Act-Familie-Konsistenz mit lokalem GLM-4.7-Flash. Daher als **optionales Alternativ-Profil** für gezielten Einsatz, nicht als Default. Mitigation Datenresidenz: Über OpenRouter-Gateway (Datenpfad bleibt bewusster) und keine Echt-PII-Snippets aktiv im Kontext, wenn DeepSeek aktiv ist. Hinweis: V4/V5-Slugs zum Stand dieser Datei nicht abschließend verifiziert — vor Aktivierung auf openrouter.ai/models nachschlagen.
+
 ---
 
 ## 2. Kosten-Überblick (monatlich)
@@ -60,6 +64,8 @@
 |---|---|---|
 | z.ai Plan oder Pay-per-Token | $3–8 | $3-Plan deckt typische Plan-Mode-Nutzung ab |
 | OpenRouter (GLM-5) | $0–5 | Nur bei seltener Eskalation, ~$0.30 pro Architektur-Plan |
+| OpenRouter (DeepSeek-V3.x/V4 alt.) | $0–3 | Nur wenn statt z.ai genutzt — substituiert z.ai nicht zusätzlich |
+| OpenRouter (DeepSeek-R1/V5-Reasoner) | $0–4 | Bei Reasoning-Tasks, ~$0.20 pro tiefer Analyse |
 | Cloudflare Tunnel | $0 | Free-Tier reicht |
 | Strom Mac (24/7 wach) | ~€8–12 | Idle ~5W, unter Last ~60W |
 | Internet-Traffic | ~0 | Tunnel-Traffic minimal |
@@ -71,10 +77,7 @@
 
 ## 3. Phase 0 — Externe SSD vorbereiten
 
-```bash
-# Mac, Festplattendienstprogramm
-open /System/Applications/Utilities/Disk\ Utility.app
-```
+
 
 GUI:
 1. 4TB-SSD wählen → **Löschen**
@@ -210,17 +213,39 @@ model_list:
       model: openrouter/z-ai/glm-5
       api_key: os.environ/OPENROUTER_API_KEY
 
+  # === Cloud: DeepSeek Cost-Saver Architect (optional) ===
+  # Aktivieren wenn z.ai-Volumen zu groß wird oder als Fallback.
+  # Slug vor Aktivierung auf openrouter.ai/models verifizieren!
+  # Kandidaten: deepseek/deepseek-chat, deepseek/deepseek-v3.1, deepseek/deepseek-v4
+  - model_name: architect-ds
+    litellm_params:
+      model: openrouter/deepseek/deepseek-chat
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  # === Cloud: DeepSeek Reasoning-Spezialist (optional) ===
+  # Für Algorithmen/Math/Perf-Analyse. Lange Thought-Traces — bei Cline
+  # ggf. höheres Token-Limit setzen.
+  # Kandidaten: deepseek/deepseek-r1, deepseek/deepseek-v5-reasoner
+  - model_name: reason
+    litellm_params:
+      model: openrouter/deepseek/deepseek-r1
+      api_key: os.environ/OPENROUTER_API_KEY
+
   # === Embeddings für Obsidian ===
   - model_name: embed
     litellm_params:
       model: ollama/nomic-embed-text
       api_base: http://localhost:11434
 
-# Fallback-Kette: falls coder lokal down → architect (Cloud)
+# Fallback-Kette
+# - coder lokal down → architect (Cloud GLM)
+# - architect (z.ai) down → architect-ds (DeepSeek via OpenRouter)
+# - architect-ds → power als letzte Stufe
 router_settings:
   fallbacks:
     - coder: [architect]
-    - architect: [power]
+    - architect: [architect-ds, power]
+    - architect-ds: [architect, power]
 
 # Cost-Tracking + Logs
 litellm_settings:
@@ -319,18 +344,20 @@ In code-server (Browser):
 1. Extensions → Cline (saoudrizwan) → Install
 2. Cline-Icon → ⚙️ Settings → **API Configuration Profiles**
 
-Drei Profile, alle gegen LiteLLM:
+Profile, alle gegen LiteLLM:
 
-| Profil | Provider | Base URL | API Key | Model ID |
-|---|---|---|---|---|
-| `architect` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `architect` |
-| `coder` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `coder` |
-| `power` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `power` |
+| Profil | Provider | Base URL | API Key | Model ID | Wann nutzen |
+|---|---|---|---|---|---|
+| `architect` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `architect` | Default Plan-Mode |
+| `coder` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `coder` | Default Act-Mode |
+| `power` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `power` | Greenfield-Architektur (GLM-5) |
+| `architect-ds` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `architect-ds` | Cost-Saver bei viel Plan-Volumen — Datenresidenz beachten! |
+| `reason` | OpenAI Compatible | `https://mac-llm.eppcom.de` | `<LITELLM_MASTER_KEY>` | `reason` | Algorithmen, Math, Perf-Optimierung (DeepSeek-R1) |
 
 **Plan/Act-Split aktivieren:**
 - Plan Model: `architect`
 - Act Model: `coder`
-- Power-Up nur manuell wechseln bei Greenfield-Architektur
+- Andere Profile nur manuell wechseln bei spezifischem Bedarf (siehe Eskalations-Heuristik §11)
 
 Test im Cline-Chat:
 ```
@@ -532,14 +559,27 @@ curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
 
 LiteLLM-UI (optional, schicker): `litellm-ui` Container starten oder Web-Endpoint `:4000/ui` aktivieren.
 
-### Eskalations-Heuristik (wann GLM-5?)
+### Eskalations-Heuristik (welches Profil wann?)
 
-**Power-Profil aktivieren NUR bei:**
+**Default-Pfad (90% der Tasks):** `architect` plant → `coder` führt aus.
+
+**`power` (GLM-5) NUR bei:**
 - Komplettes neues App-Modul (>5 Dateien, eigene Domain) greenfield
 - Cross-System-Architektur (z.B. RAG-Pipeline-Redesign mit Vector-DB-Wechsel)
 - Wenn `architect` (GLM-4.7) nach 2 Plan-Iterationen keinen sauberen Plan liefert
 
-**NICHT für:** Coolify-Debugging, Migration in `db.ts`, n8n-Workflow-Edit, Bug-Fixes, Refactors innerhalb einer Datei → das macht `coder` lokal.
+**`reason` (DeepSeek-R1 / V5-Reasoner) NUR bei:**
+- Algorithmus-Design / Komplexitätsanalyse
+- Performance-Optimierung mit Trade-off-Reasoning (Cache-Strategien, Query-Pläne)
+- Math-/Statistik-lastige Logik (z.B. Scoring-Funktionen für LivingMatch-Match-Algorithmus)
+- Tipp: Output kann lange Thought-Traces enthalten — in Cline ggf. nur den finalen Plan ans `coder`-Profil weiterreichen
+
+**`architect-ds` (DeepSeek Cost-Saver) NUR bei:**
+- Hohem Plan-Volumen (z.B. mehrere Architektur-Sessions/Tag) wenn z.ai-Budget knapp wird
+- **Vorher prüfen:** Enthält der zu sendende Kontext echte PII (Mailadressen, User-Namen aus DB-Migrations)? Wenn ja → `architect` (z.ai) bevorzugen
+- Mitigation: PII via Find/Replace im Cline-Prompt durch Platzhalter ersetzen, dann DeepSeek
+
+**NIE Eskalations-Profile für:** Coolify-Debugging, Migration in `db.ts`, n8n-Workflow-Edit, Bug-Fixes, Refactors innerhalb einer Datei → das macht `coder` lokal.
 
 ---
 
@@ -571,6 +611,23 @@ LiteLLM-UI (optional, schicker): `litellm-ui` Container starten oder Web-Endpoin
 2. Smart-Connections-Chat in Obsidian
 3. Antwort mit Backlinks zu den Original-Notes
 4. Wenn neue Erkenntnis → in `refs/coolify-bugs.md` konsolidieren
+
+### Workflow E: Reasoning-Heavy (DeepSeek-R1 / V5-Reasoner)
+1. Problem: z.B. "Optimiere LivingMatch-Match-Score-Algorithmus, aktuell O(n²) auf 50k Profilen"
+2. Cline → Plan-Profil zu `reason` switchen
+3. Prompt mit konkreten Constraints (RAM-Budget, Latenz-SLA, vorhandener Code-Kontext)
+4. R1 produziert Thought-Trace + Plan — Thought-Trace überfliegen, finalen Plan extrahieren
+5. Plan in Obsidian `projects/livingmatch/decisions/` archivieren
+6. Zurück auf `architect` für Detail-Subtasks
+7. `coder` setzt um
+8. Cost-Check: ein typischer R1-Run ~$0.20–0.40
+
+### Workflow F: Cost-Saver-Tag (DeepSeek Architect)
+1. Du merkst: heute viele Plan-Sessions (>10), z.ai-Budget knapp
+2. Vor Switch: Prompt-Inhalt sichten — keine PII, kein DB-Dump
+3. Cline → Plan-Profil zu `architect-ds`
+4. Normal weiterarbeiten — Halbe Kosten, ähnliche Qualität
+5. Am Tagesende: zurück auf `architect` als Default
 
 ---
 
