@@ -1,5 +1,5 @@
 # LivingMatch — Übergabe-Doku Chat 5
-Stand: 2026-04-30
+Stand: 2026-05-01 (final)
 
 ---
 
@@ -55,8 +55,8 @@ Stand: 2026-04-30
 
 ## Noch offen — User-Aktionen
 
-### 1. Coolify-Redeploy für Modal-UI (2 Min)
-Das Passwort-Modal aus `16de2bf` ist im Repo aber noch nicht live. Coolify-UI → `livingmatch` → "Redeploy".
+### 1. ~~Coolify-Redeploy für Modal-UI~~ ✅ ERLEDIGT
+Deploy `rxb5m3nru8e7xew4bn328bna` 2026-05-01 21:11 UTC, Status `finished`. Modal-Code ist im aktuellen Bundle live (`/_next/static/chunks/03~yq9q893hmn.js`). App-Status: `running:healthy`.
 
 ### 2. Admin-Passwort ändern (1 Min)
 Initial-PW `n6rriabc!2` immer noch aktiv, aus Logs lesbar. Nach Login → Profil → "Passwort ändern" → neues sicheres PW setzen.
@@ -98,9 +98,21 @@ SSL-Issuer:    Let's Encrypt R13 (gültig bis 2026-07-27)
 
 ## Checkliste für Chat 6
 
-- [ ] Coolify-Redeploy ausgelöst → Modal live
-- [ ] Admin-PW geändert
-- [ ] SSH-Key auf Server 1 + 2 eingetragen
-- [ ] Ionos-FTP-Daten erhalten → Homepage-Widget deployen
+- [x] Coolify-Redeploy ausgelöst → Modal live (2026-05-01 21:11 UTC)
+- [ ] Admin-PW geändert (User-Aktion)
+- [ ] SSH-Key auf Server 1 + 2 eingetragen (User-Aktion)
+- [ ] Ionos-FTP-Daten erhalten → Homepage-Widget deployen (User-Aktion)
 - [ ] (Optional) Voicebot weiter tunen
 - [ ] (Optional) Backup-Strategie für livingmatch-db
+
+---
+
+## Final-Verifikation 2026-05-01
+
+```
+🌐 DNS:        livingmatch.app → 46.224.54.65 (Hetzner-NS)
+🔒 SSL:        Let's Encrypt R13, gültig bis 2026-07-27
+🩺 App:        running:healthy
+📡 Endpunkte:  /login 200 | /api/auth/me 401 | /api/auth/searches 401 | /api/auth/forgot-password 200
+🎙️ Voicebot:  Token-API 200/263ms | RAG 200/331ms | Widget 200
+```
