@@ -58,3 +58,5 @@
 2. **`~/.claude/projects/-home-coder-eppcom/memory/`** — Auto-Memory, lädt automatisch in jedem Chat
 3. **`app/appdevelompentN.md`** — detaillierte Session-Logs (UUIDs, Befehle, Workarounds)
 4. **Obsidian-Vault** `/home/coder/obsidian-vault/` — alle Chat-Transcripte (Stop-Hook → GitHub `EPPCOM-Solutions/llm-chats`); MCP-Server `obsidian` für Lesezugriff in Sessions (`mcp__obsidian__*` Tools)
+5. **Karpathy LLM-Wiki** `/home/coder/obsidian-wiki/` — kompiliertes Wissen via Ar9av/obsidian-wiki Framework (Repo `EPPCOM-Solutions/eppcom-wiki`); ingest aus chat-archive; global `/wiki-query` + `/wiki-update`, project-lokal alle 25 Skills inkl. `/wiki-setup`, `/wiki-ingest`, `/wiki-lint`
+6. **Globale Coding-Regeln** `~/.claude/CLAUDE.md` — Karpathy 4-Punkte-Disziplin (Think-before-coding, Simplicity-first, Surgical-changes, Goal-driven)
