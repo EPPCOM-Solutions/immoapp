@@ -30,7 +30,7 @@ export const mockProperties: Property[] = [
     livingSpace: 450,
     rooms: 15,
     imageUrl: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?q=80&w=1000&auto=format&fit=crop',
-    source: 'Immowelt',
+    source: 'Immobilo',
     estimatedRent: 72000 // 6000 cold rent / month
   },
   {
@@ -51,7 +51,7 @@ export const mockProperties: Property[] = [
     livingSpace: 140,
     rooms: 4,
     imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=1000&auto=format&fit=crop',
-    source: 'Immowelt',
+    source: 'Immobilo',
     estimatedRent: 54000
   }
 ];

@@ -73,7 +73,7 @@ export const SearchSettingsDialog: React.FC<Props> = ({ settings, setSettings, o
 
       <div className="bg-orange-900/20 border border-orange-500/20 p-4 rounded-xl text-orange-100 text-sm mb-6 flex gap-3">
         <Info className="w-5 h-5 text-orange-400 shrink-0" />
-        <p>Deine Sucheinstellungen werden portalübergreifend angewandt (ImmoScout24, Immowelt, Kleinanzeigen).</p>
+        <p>Deine Sucheinstellungen werden portalübergreifend angewandt (ImmoScout24, Immobilo, Kleinanzeigen).</p>
       </div>
 
       <div className="space-y-6">
@@ -220,7 +220,7 @@ export const SearchSettingsDialog: React.FC<Props> = ({ settings, setSettings, o
         <div className="border-t border-stone-700/50 pt-5 mt-2">
            <label className="text-xs uppercase tracking-wider text-stone-400 font-bold mb-3 block">Aktive Portale</label>
            <div className="grid grid-cols-2 gap-3">
-             {['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immobilo', 'Regional'].map((portal) => {
+             {['Kleinanzeigen', 'ImmoScout24', 'Immobilo', 'Regional'].map((portal) => {
                 const isActive = localSettings.activePortals?.includes(portal);
                 const togglePortal = () => {
                   const current = localSettings.activePortals || [];

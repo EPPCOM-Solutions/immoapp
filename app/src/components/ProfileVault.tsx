@@ -325,7 +325,7 @@ export const ProfileVault: React.FC<Props> = ({ profile, setProfile }) => {
           <div className="pt-4 border-t border-stone-700/50">
             <h3 className="text-orange-400 font-bold text-sm mb-4">Verknüpfte Portale für 1-Klick-Bewerbung</h3>
             
-            {['Kleinanzeigen', 'ImmoScout24', 'Immowelt'].map(portal => {
+            {['Kleinanzeigen', 'ImmoScout24', 'Immobilo'].map(portal => {
               const key = portal.toLowerCase();
               const portalData = profile.portalLogins?.[key] || { username: '', password: '' };
               

@@ -102,46 +102,48 @@ export async function fetchKleinanzeigen(location: string, intent: SearchIntent,
   }
 }
 
-export async function fetchImmowelt(location: string, intent: SearchIntent, propertyType: string, provisionsfrei: boolean): Promise<Property[]> {
+export async function fetchImmobilo(location: string, intent: SearchIntent, propertyType: string, provisionsfrei: boolean): Promise<Property[]> {
   try {
-    const slug = location.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    let type = 'wohnungen/mieten';
-    if (intent === 'rent') {
-      if (propertyType === 'haus') type = 'haeuser/mieten';
-      else if (propertyType === 'grundstueck') type = 'grundstuecke/mieten';
-    } else {
-      if (propertyType === 'haus') type = 'haeuser/kaufen';
-      else if (propertyType === 'grundstueck') type = 'grundstuecke/kaufen';
-      else type = 'wohnungen/kaufen';
-    }
-    const url = `https://www.immowelt.de/suche/${slug}/${type}`;
+    const safeLoc = encodeURIComponent(location.toLowerCase());
+    const rentBuy = intent === 'rent' ? 'mieten' : 'kaufen';
+    let typeParam = 'wohnung';
+    if (propertyType === 'haus') typeParam = 'haus';
+    else if (propertyType === 'grundstueck') typeParam = 'grundstueck';
+    const url = `https://www.immobilo.de/${rentBuy}/${typeParam}/${safeLoc}`;
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 60 } });
     if (!response.ok) return [];
     const html = await response.text();
     const $ = cheerio.load(html);
     const properties: Property[] = [];
-    $('.EstateItem-4409d').each((_, el) => {
-      const title = $(el).find('h2').text().trim();
-      const priceText = $(el).find('[data-test="price"]').text();
-      const price = parseInt(priceText.replace(/[^\d]/g, ''), 10) || 0;
-      const spaceText = $(el).find('[data-test="area"]').text();
-      const sMatch = spaceText.match(/(\d+(?:,\d+)?)/);
-      const livingSpace = sMatch ? parseFloat(sMatch[1].replace(',', '.')) : null;
-      const roomText = $(el).find('[data-test="rooms"]').text();
-      const rMatch = roomText.match(/(\d+(?:,\d+)?)/);
-      const rooms = rMatch ? parseFloat(rMatch[1].replace(',', '.')) : null;
-      let adUrl = $(el).find('a').attr('href') || '';
-      if(adUrl && !adUrl.startsWith('http')) adUrl = `https://www.immowelt.de${adUrl}`;
-      const imageUrl = $(el).find('img').attr('src') || 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=1000&auto=format&fit=crop';
+    $('.js-bookmark-btn').each((_, el) => {
+      const btn = $(el);
+      const id = btn.attr('data-id') || '';
+      const title = btn.attr('data-title') || '';
+      const rawUrl = btn.attr('data-url') || '';
+      const adUrl = rawUrl.startsWith('http') ? rawUrl : `https://www.immobilo.de${rawUrl}`;
+      const rawPrice = btn.attr('data-price') || '';
+      const priceMatch = rawPrice.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/);
+      const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g, ''), 10) : 0;
+      const rooms = parseFloat((btn.attr('data-rooms') || '').replace(',', '.')) || null;
+      const livingSpace = parseFloat((btn.attr('data-space') || '').replace(',', '.')) || null;
+      const address = btn.attr('data-address') || location;
+      const imageUrl = btn.attr('data-image') || 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80&w=1000&auto=format&fit=crop';
+      
+      const text = btn.closest('.card').text() || '';
+      let isPrivate = text.toLowerCase().includes('provisionsfrei') || text.toLowerCase().includes('von privat');
+      
+      // Removed the strict provisionsfrei filtering here to show more results initially, but kept it if strictly requested.
+      if (provisionsfrei && !isPrivate) return;
+
       if (title && price > 0) {
         properties.push({
-          id: `iw-${title.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}-${price}`,
-          title, address: location, price, rooms, livingSpace, imageUrl, url: adUrl || url,
-          source: 'Immowelt', competitionScore: 8, priceTrend: 'steady'
+          id: `immo-${id || title.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}-${price}`,
+          title, address, price, rooms, livingSpace, imageUrl, url: adUrl,
+          source: 'Immobilo', competitionScore: 8, priceTrend: 'steady'
         });
       }
     });
-    return properties;
+    return properties.filter((v,i,a)=>a.findIndex(t=>(t.id === v.id))===i);
   } catch (err) {
     return [];
   }
@@ -154,40 +156,38 @@ export async function fetchRegional(location: string, intent: SearchIntent, prop
     let typeParam = 'wohnungen';
     if (propertyType === 'haus') typeParam = 'haeuser';
     else if (propertyType === 'grundstueck') typeParam = 'grundstuecke';
-    const url = `https://immo.swp.de/suche/${typeParam}-${rentBuy}/${safeLoc}`;
+    const url = `https://immo.swp.de/suche/${typeParam}/${rentBuy}/${safeLoc}`;
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 60 } });
     if (!response.ok) return [];
     const html = await response.text();
     const $ = cheerio.load(html);
     const properties: Property[] = [];
-    $('.featured-listings__item, .results-list__item').each((_, el) => {
-      const titleEl = $(el).find('h2, .featured-listings__item__title a, .results-list__item__title a').first();
-      const title = titleEl.text().trim();
-      let href = titleEl.attr('href') || $(el).find('a').first().attr('href') || '';
-      const adUrl = href.startsWith('http') ? href : `https://immo.swp.de${href}`;
-      const priceText = $(el).find('.featured-listings__item__price, .results-list__item__price').text() || $(el).text();
-      const priceMatch = priceText.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*€/);
+    $('.js-bookmark-btn').each((_, el) => {
+      const btn = $(el);
+      const id = btn.attr('data-id') || '';
+      const title = btn.attr('data-title') || '';
+      const rawUrl = btn.attr('data-url') || '';
+      const adUrl = rawUrl.startsWith('http') ? rawUrl : `https://immo.swp.de${rawUrl}`;
+      const rawPrice = btn.attr('data-price') || '';
+      const priceMatch = rawPrice.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/);
       const price = priceMatch ? parseInt(priceMatch[1].replace(/\./g, ''), 10) : 0;
-      let img = $(el).find('img').first().attr('data-src') || $(el).find('img').first().attr('src');
-      if (img && !img.startsWith('http')) img = `https://immo.swp.de${img}`;
-      const text = $(el).text();
-      let rooms = null;
-      const roomMatch = text.match(/(\d+(?:[.,]\d+)?)\s*[-]?(?:Zimmer|Zi\.|Zi\b)/i);
-      if (roomMatch) rooms = parseFloat(roomMatch[1].replace(',', '.'));
-      let livingSpace = null;
-      const spaceMatch = text.match(/(\d+(?:[.,]\d+)?)\s*m²/i);
-      if (spaceMatch) livingSpace = parseFloat(spaceMatch[1].replace(',', '.'));
+      const rooms = parseFloat((btn.attr('data-rooms') || '').replace(',', '.')) || null;
+      const livingSpace = parseFloat((btn.attr('data-space') || '').replace(',', '.')) || null;
+      const address = btn.attr('data-address') || location;
+      const imageUrl = btn.attr('data-image') || 'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1000&auto=format&fit=crop';
+      
+      const text = btn.closest('.card').text() || '';
       const isPrivate = text.toLowerCase().includes('von privat') || text.toLowerCase().includes('provisionsfrei');
+      
       if (title && price > 0) {
         properties.push({
-          id: `swp-${title.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}-${price}`,
-          title, address: `${location} (Lokal)`, price, rooms, livingSpace, 
-          imageUrl: img || 'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1000&auto=format&fit=crop',
-          url: adUrl, source: 'Regionale Zeitungen', competitionScore: 4, priceTrend: 'steady', isPrivate
+          id: `swp-${id || title.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15)}-${price}`,
+          title, address: `${address} (Lokal)`, price, rooms, livingSpace, 
+          imageUrl, url: adUrl, source: 'Regionale Zeitungen', competitionScore: 4, priceTrend: 'steady', isPrivate
         });
       }
     });
-    return properties.filter((v,i,a)=>a.findIndex(t=>(t.title === v.title))===i);
+    return properties.filter((v,i,a)=>a.findIndex(t=>(t.id === v.id))===i);
   } catch(err) {
     return [];
   }
@@ -224,7 +224,7 @@ export async function aggregateProperties(settings: SearchSettings): Promise<Pro
 
   locations.forEach(loc => {
     if (portals.includes('Kleinanzeigen')) promises.push(fetchKleinanzeigen(loc, intent, propertyType, provisionsfrei || false, radius || 0));
-    if (portals.includes('Immowelt')) promises.push(fetchImmowelt(loc, intent, propertyType, provisionsfrei || false));
+    if (portals.includes('Immobilo')) promises.push(fetchImmobilo(loc, intent, propertyType, provisionsfrei || false));
     if (portals.includes('Regional')) promises.push(fetchRegional(loc, intent, propertyType));
   });
 

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const locations = locationsParam.split(',').map(l => l.trim()).filter(Boolean);
   const portalsRaw = portalsParam ? portalsParam.split(',').map(p => p.trim()).filter(Boolean) : [];
-  const portals = portalsRaw.length > 0 ? portalsRaw : ['Kleinanzeigen', 'Immowelt', 'ImmoScout24', 'Immobilo', 'Regional'];
+  const portals = portalsRaw.length > 0 ? portalsRaw : ['Kleinanzeigen', 'ImmoScout24', 'Immobilo', 'Regional'];
   
   const settings = {
     intent,

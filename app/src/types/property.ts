@@ -11,7 +11,7 @@ export interface Property {
   imageUrl: string;
   url?: string; // Original portal link
   imageUrls?: string[]; // Detailed gallery
-  source: 'ImmoScout24' | 'Immowelt' | 'Kleinanzeigen' | string;
+  source: 'ImmoScout24' | 'Immobilo' | 'Kleinanzeigen' | string;
   // For investment logic
   estimatedRent?: number; // Yearly cold rent estimation if buy
   priorityScore?: number; // KI Score
