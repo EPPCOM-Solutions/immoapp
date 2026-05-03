@@ -1,56 +1,68 @@
 # H — Local LLM Stack (M4 Pro) + Hetzner-Router + DSGVO-Compliance
 
-**Stand:** 2026-05-02 (Architektur-Pivot v2: LiteLLM nach Hetzner, DSGVO-Two-Path-Routing)
-**Zweck:** Komplette Anleitung für hybriden LLM-Stack mit:
-- **DSGVO-Pfad** für sensible Kundendaten (Ärzte, Anwälte, Steuerberater) — ausschließlich Mac-Ollama, kein Cloud-Fallback
-- **Public-Pfad** für unsensible Workloads + eigene Coding-Arbeit — Mac primary, Cloud-Fallback erlaubt
-- LiteLLM-Router auf Hetzner workflows-CX33 (24/7), Mac als bevorzugtes Backend
+**Stand:** 2026-05-03 (v4: Drei-Tier Strict/Operational/Public + WireGuard + Mistral EU-Fallback + Geschäftszeiten-Routing)
+**Zweck:** Komplette Anleitung für hybriden LLM-Stack mit Drei-Tier-Compliance:
+- **Strict** (§203 StGB / Art. 9 DSGVO): Berufsgeheimnis-Inhalte (Akten, Diagnosen, Mandantengespräche) — NUR Mac-Ollama, kein Cloud, Wartungsmeldung wenn off
+- **Operational** (DSGVO-Personaldaten): Termine, Bestellungen, Status-Anfragen, allgemeine RAG-Auskünfte — Mac primary, EU-DSGVO-Cloud-Fallback (Mistral La Plateforme), 24/7 erreichbar
+- **Public + Coding**: Demo-Bots eppcom.de, Marketing, eigene Cline-Arbeit — z.ai/OpenRouter erlaubt
+- LiteLLM-Router auf Hetzner workflows (24/7), WireGuard-Tunnel zum Mac für Strict
 - Karpathy-inspirierte Obsidian-Wissensbasis lokal auf Mac
-- Voicebot/Chatbot-Orchestrierung + Tenant-RAG mit Compliance-Routing
+- Tenant-spezifische Geschäftszeiten + Pre-Warm-Cron für niedrige Latenz
 
 ---
 
 ## 0. TL;DR
 
 ```
-                          ┌────────────────────────────────────────────────┐
-                          │ Hetzner workflows-CX33 (94.130.170.167) 24/7   │
-                          │                                                │
-                          │   Coolify ──► n8n / Typebot / Postgres / RAG   │
- ┌───────────────────┐    │                                                │
- │ code-server       │ ──►│   ★ LiteLLM-Router :4000  ──► litellm.eppcom.de│
- │ (Cline)           │    │     │                                          │
- └───────────────────┘    │     ├─ Pfad A: SENSITIVE (DSGVO)               │
-                          │     │   ├─ Primary: Mac-Ollama (mandatory)     │
- ┌───────────────────┐    │     │   ├─ NO cloud fallback                   │
- │ Voicebot /        │ ──►│     │   └─ Mac off → 503 (System OFF policy)   │
- │ Chatbot Tenants   │    │     │                                          │
- │ (eppcom services) │    │     └─ Pfad B: PUBLIC (own coding, demos)      │
- └───────────────────┘    │         ├─ Primary: Mac-Ollama                 │
-                          │         ├─ Fallback 1: z.ai GLM-4.7            │
-                          │         └─ Fallback 2: OpenRouter (GLM-5/DS)   │
-                          │                                                │
-                          └─────────────▲──────────────────────────────────┘
-                                        │ Cloudflare Tunnel
-                                        │ mac-ollama.eppcom.de (only Ollama)
- ┌─────────────────────────────────────┴─────────────────────────┐
+ ┌─────────────────────┐    ┌────────────────────────────────────────────────┐
+ │ Tenant-Workloads    │    │ Hetzner workflows (CX33→CX43) 24/7 in Nürnberg │
+ │ Anwälte, Ärzte,     │    │                                                │
+ │ Steuerberater,      │    │   Coolify ─► n8n / Typebot / Postgres / RAG    │
+ │ Makler, Handwerker, │    │                                                │
+ │ Verkäufer,          │    │   ★ LiteLLM-Router :4000 ─► litellm.eppcom.de  │
+ │ Kundenunternehmen   │ ──►│     │                                          │
+ │                     │    │     ├─ STRICT  (§203, Akten, Diagnosen)        │
+ │ + Cline (eigenes)   │    │     │   └─ Mac via WireGuard, KEIN Fallback    │
+ └─────────────────────┘    │     │       ↳ off → Wartungsmeldung-Antwort    │
+                            │     │                                          │
+                            │     ├─ OPERATIONAL  (Termin, Bestellung, RAG)  │
+                            │     │   ├─ Mac primary (Geschäftszeiten)       │
+                            │     │   └─ Mistral La Plateforme (EU/AVV)      │
+                            │     │       ↳ 24/7, automatischer Fallback     │
+                            │     │                                          │
+                            │     └─ PUBLIC + CODING                         │
+                            │         ├─ Mac → z.ai → OpenRouter             │
+                            │         └─ DeepSeek nur für eigenen Code       │
+                            └────────▲────────▲──────────────────────────────┘
+                                     │        │
+                                     │        │ Cloudflare Tunnel
+                                     │        │ litellm.eppcom.de (public API)
+                                     │
+                                     │ WireGuard 10.8.0.0/24 (UDP 51820)
+                                     │ direct, kein Drittanbieter im TLS-Pfad
+ ┌───────────────────────────────────┴───────────────────────────┐
  │  MacBook M4 Pro (48GB, ext. SSD /Volumes/LLM)                 │
  │                                                               │
- │   Ollama :11434 (exponiert via Tunnel, NUR diese Komponente)  │
- │     - GLM-4.7-Flash 30B-A3B  (Coder)                          │
- │     - qwen3.6:27b / 35b-a3b  (Voicebot/RAG)                   │
- │     - gemma4:31b              (Alternative)                   │
- │     - nomic-embed-text        (Embeddings)                    │
+ │   Ollama bound auf 10.8.0.10:11434 (NICHT 0.0.0.0!)           │
+ │   pf-Firewall: nur utun0 (WG) Zugriff auf 11434               │
+ │                                                               │
+ │     - qwen3.6:27b           (Voicebot/RAG strict+operational) │
+ │     - glm-4.7-flash         (eigener Coder)                   │
+ │     - nomic-embed-text      (Embeddings, resident)            │
+ │   OLLAMA_MAX_LOADED_MODELS=1, KEEP_ALIVE pro-Modell via Cron  │
  │                                                               │
  │   Obsidian Vault (Git-synced) ─► Smart Connections (lokal)    │
  └───────────────────────────────────────────────────────────────┘
 ```
 
-**DSGVO-Kernregel:** Sensitive Workloads bekommen NIEMALS automatischen Cloud-Fallback. Wenn Mac off → bewusste 503-Antwort, nicht stilles Routing in PRC/US-Cloud.
+**Drei DSGVO-Kernregeln:**
+1. **Strict:** NIEMALS Cloud, auch nicht "kurz für Notfall". Mac off → Wartungsmeldung an Anrufer (Body), HTTP 503 Maschine-zu-Maschine
+2. **Operational:** Mac primary, EU-Cloud (Mistral FR mit AVV) als auto-Fallback. 24/7 Verfügbarkeit für Termine/Bestellungen/RAG
+3. **Public + Coding:** alles erlaubt, Cost-Optimierung im Vordergrund
 
-**Kosten-Ziel:** ~€16–22/Monat (LiteLLM auf bestehendem Hetzner = €0 marginal, EPPCOM-LLM-Server kündigen spart €5–7)
-**Latenz-Ziel:** Mac-Ollama via Tunnel <800ms TTFT, Cloud <1.5s, Tunnel-Hop-Cost ~50–150ms
-**Verfügbarkeit:** Public-Pfad 99% (Cloud-Fallback), Sensitive-Pfad = Mac-Verfügbarkeit (bewusst gewählt)
+**Kosten-Ziel:** ~€18–25/Monat (CX43-Upgrade +€5, Server-2-Kündigung −€7, Mistral pay-per-use ~€2–5)
+**Latenz-Ziel:** Mac via WG <500ms TTFT (kein Cloudflare-Hop), Mistral <1.2s, z.ai <1.5s
+**Verfügbarkeit:** Operational/Public 99.5% (Cloud-Fallback), Strict = Mac-Verfügbarkeit (Geschäftszeiten-Pflege)
 
 ---
 
@@ -85,58 +97,152 @@
 
 ---
 
-## 1a. DSGVO-Architektur (Two-Path-Routing)
+## 1a. DSGVO-Architektur (Three-Tier-Routing)
 
-### Pfad-Definition
+### Tier-Definition
 
-| Pfad | Aliase (Beispiel) | Backends | Fallback | Use-Case |
-|---|---|---|---|---|
-| **SENSITIVE** | `voicebot-sensitive`, `rag-sensitive`, `chat-sensitive` | NUR Mac-Ollama | **KEIN** — Mac down → HTTP 503 + Audit-Log | Heilberufe, Anwälte, Steuerberater, jeder PII-führende Tenant |
-| **PUBLIC** | `voicebot-public`, `rag-public`, `chat-public` | Mac-Ollama → z.ai → OpenRouter | Auto-Kette | Demo-Voicebot eppcom.de, Marketing-Chatbot, Test-Tenants |
-| **CODING** (eigene Arbeit) | `architect`, `coder`, `power`, `reason`, `architect-ds` | Mac-Coder + Cloud-Tiers | Auto-Kette | Cline auf code-server, eigener Quellcode (NIE Mandantencode!) |
+| Tier | Aliase (Beispiele) | Backends | Fallback | Verfügbarkeit | Use-Case |
+|---|---|---|---|---|---|
+| **STRICT** | `voicebot-strict`, `rag-strict`, `chat-strict` | NUR Mac-Ollama via WireGuard | **KEIN** — Mac off → 503 + Wartungs-Body | Geschäftszeiten Tenant | Mandantengespräche, Aktenwissen, Diagnosen, Berufsgeheimnis (§203 StGB), Art. 9 DSGVO |
+| **OPERATIONAL** | `voicebot-op`, `rag-op`, `chat-op`, `appointment-op` | Mac primary → Mistral La Plateforme (FR, EU-AVV) | Auto-Fallback bei Mac-Down | **24/7** | Termin-Buchung, Bestellung, allgemeine RAG-Anfrage ("Was kostet…?", Öffnungszeiten), Auftragsannahme |
+| **PUBLIC + CODING** | `voicebot-public`, `architect`, `coder`, `power`, `reason` | Mac → z.ai → OpenRouter | Auto-Kette | 24/7 | Demo eppcom.de, Marketing-Chatbot, eigene Cline-Coding (NIE Mandantencode!) |
+
+### Branchen → Default-Tier-Mapping
+
+Jeder Tenant bekommt einen `default_compliance_tier` in Postgres. Workflows können den Tier pro Use-Case **strenger** überschreiben (nie laxer).
+
+| Branche | Default-Tier | Operational-Override für | Strict-Override für |
+|---|---|---|---|
+| Anwaltskanzleien | strict | Termin-Buchung, Erstberatung-Slot-Anfrage | Mandantenchat, Aktenwissen-RAG |
+| Arztpraxen | strict | Routine-Terminbuchung, Praxis-Öffnungszeiten | Symptom-Triage, Patientendaten |
+| Steuerberater | strict | Termin, allg. Service-Anfrage | Mandanten-Akte, Steuerdetails |
+| Makler | operational | (Default) Objektanfragen, Besichtigungstermin | Vertragsdetails einzelner Mandanten |
+| Verkäufer/Handwerker | operational | (Default) alles | i.d.R. nichts |
+| Kundenunternehmen (B2B) | operational | (Default) Bestellung, Lieferstatus | Vertragsspezifika auf Anfrage |
 
 ### Compliance-Matrix
 
 | Anforderung | Lösung |
 |---|---|
-| Verarbeitung im EU-Raum | Mac in DE, Hetzner in DE → ✓ |
-| AVV mit Auftragsverarbeitern | LiteLLM self-hosted, kein Dritt-AVV nötig → ✓ |
-| Datenminimierung | Sensitive-Aliase senden NIE an Cloud → ✓ |
-| Löschkonzept | Sensitive-Pfad: `log_raw_request: false`, nur Metadaten-Logs |
-| Auditierbarkeit | Getrennte SQLite-DBs für sensitive vs. public Spend/Logs |
-| Transport-Verschlüsselung | Cloudflare Tunnel = TLS 1.3 |
+| Verarbeitung im EU-Raum | Mac in DE, Hetzner in DE, Mistral in FR → ✓ |
+| AVV mit Auftragsverarbeitern | LiteLLM self-hosted (kein Dritt-AVV); Mistral La Plateforme bietet AVV; z.ai/DeepSeek **nicht** für Tenants |
+| Datenminimierung | Strict-Aliase senden NIE an Cloud; Operational nur an EU-AVV-Provider |
+| Löschkonzept | Strict: `turn_off_message_logging`; Operational: 30-Tage-TTL; Pubic: keine spezielle Frist |
+| Auditierbarkeit | Getrennte SQLite-DBs für strict / operational / public Spend |
+| Transport-Verschlüsselung | WireGuard (strict), Cloudflare Tunnel TLS 1.3 (public/operational) |
 | Storage-Verschlüsselung | macOS FileVault auf Mac (PFLICHT!), Hetzner LUKS-Volume |
 
-### Mandanten-Tagging-Konvention
+### Tenant-Konfiguration in Postgres
 
-```python
-# Voicebot für Arzt-Tenant — SENSITIVE
-client.chat.completions.create(
-    model="voicebot-sensitive",            # explizit, kein Cloud möglich
-    messages=[...],
-    extra_headers={"X-Tenant-ID": "praxis-mueller", "X-Compliance": "dsgvo-art9"}
-)
+```sql
+ALTER TABLE tenants ADD COLUMN default_compliance_tier TEXT NOT NULL DEFAULT 'strict';
+ALTER TABLE tenants ADD COLUMN business_hours JSONB;
+-- Beispiel business_hours:
+-- {"mon":["08:00-20:00"],"tue":["08:00-20:00"],...,"sat":["09:00-13:00"],"sun":[]}
 
-# Demo-Voicebot eppcom.de — PUBLIC
-client.chat.completions.create(model="voicebot-public", messages=[...])
-
-# FALSCH — leakt Mandantendaten in z.ai
-client.chat.completions.create(
-    model="voicebot-public",
-    messages=[{"role": "user", "content": patient_data}]   # ⚠️ NEIN
-)
+CREATE TABLE workflow_routes (
+  id UUID PRIMARY KEY,
+  tenant_id UUID REFERENCES tenants(id),
+  workflow_key TEXT NOT NULL,           -- z.B. 'termin_buchung', 'mandantenchat'
+  compliance_tier TEXT NOT NULL,        -- strict | operational | public
+  available_24_7 BOOLEAN DEFAULT FALSE  -- override Geschäftszeiten
+);
 ```
 
-**n8n-Regel:** Postgres-Tabelle `tenants` trägt Spalte `compliance_tier` ∈ {`sensitive`, `public`}. n8n-Node leitet Modell-Alias dynamisch daraus ab. Falsch-Tagging ist DB-Konfig-Fehler, nicht versteckter Code-Bug.
+### Aufruf-Konvention (n8n)
 
-### System-OFF-Policy (Sensitive bei Mac-Down)
+```javascript
+// n8n: vor dem LiteLLM-Call das richtige Alias bestimmen
+const tier = workflow.compliance_tier || tenant.default_compliance_tier;
+const useCase = workflow.workflow_key;  // z.B. 'voicebot', 'rag', 'appointment'
 
-- LiteLLM Health-Check `mac-ollama.eppcom.de` schlägt fehl
-- Sensitive-Aliase liefern HTTP 503 + `{"error":"sensitive_backend_offline"}`
-- Voicebot Wartungs-Antwort: *"Telefonservice für [Tenant] aktuell außer Betrieb. Notfälle bitte direkt anrufen."*
-- Audit-Log notiert versuchte Aufrufe mit Tenant-ID + Timestamp
-- **Niemals automatisches Cloud-Fallback** — bewusste Geschäftsentscheidung pro Tenant ob Wartungsfenster akzeptabel
-- Public-Aliase laufen währenddessen ungestört über Cloud weiter
+// Aliase folgen Schema: {use-case}-{tier}
+const model = `${useCase}-${tier}`;     // z.B. 'voicebot-strict' oder 'appointment-op'
+
+await axios.post('https://litellm.eppcom.de/v1/chat/completions', {
+  model,
+  messages,
+}, {
+  headers: {
+    'Authorization': `Bearer ${LITELLM_KEY}`,
+    'X-Tenant-ID': tenant.id,
+    'X-Workflow': useCase,
+    'X-Tier': tier,
+  }
+});
+```
+
+**Falsch-Tagging-Schutz:** Default-Tier in DB ist `strict` (failsafe). Ein neuer Tenant ohne explizite Konfig läuft automatisch auf strict — lieber 503 wenn Mac aus als Datenleak.
+
+### Reaktion bei Strict-503 (Wartungsmeldung statt Fehler)
+
+LiteLLM gibt HTTP 503 für Maschinen, aber **Body enthält ready-to-use TTS/Chat-Text**:
+```json
+{
+  "error": "strict_backend_offline",
+  "user_message": "Unsere IT-Systeme befinden sich aktuell in Wartung. Bitte versuchen Sie es in ca. 30 Minuten erneut. Vielen Dank für Ihr Verständnis.",
+  "retry_after": 1800,
+  "tenant_id": "praxis-mueller",
+  "incident_id": "..."
+}
+```
+
+Voicebot-Code spielt `user_message` als TTS ab → Anrufer hört freundliche Wartungsmeldung, NIE den HTTP-Code. Audit-Log erfasst `incident_id` + Tenant + Timestamp für Statistik.
+
+### Geschäftszeiten-Logik
+
+- **Strict-Anfragen außerhalb Geschäftszeiten:** sollten nicht stattfinden (Praxis zu, niemand ruft an). Falls doch → Wartungsmeldung, Audit-Anomalie
+- **Operational-Anfragen 24/7:** Mac primary während Geschäftszeiten + 30 Min Puffer, dann Auto-Fallback Mistral
+- **Pre-Warm-Cron auf Mac:** lädt strict-Modell 30 Min vor Geschäftsbeginn jedes Tenants vor (siehe §10)
+
+---
+
+## 1b. Auto-Modell-Selektor (Token-Optimierung)
+
+Innerhalb eines Tiers gibt es **Fast** und **Standard** Modell-Varianten. Ein LiteLLM-Pre-Call-Hook (`model_selector.py`) wählt automatisch je Anfrage das günstigste passende Modell.
+
+### Fast vs Standard pro Tier
+
+| Tier | Fast (cheap) | Standard | Auswahl-Trigger Standard |
+|---|---|---|---|
+| strict | `qwen3.6:7b` (~5GB lokal) | `qwen3.6:27b` (~17GB lokal) | Prompt > 800 Token, RAG-Context > 4kB, oder Workflow-Tag `complex` |
+| operational | `qwen3.6:7b` (lokal) → Mistral Small (Fallback) | `qwen3.6:27b` (lokal) → Mistral Medium (Fallback) | gleiche Trigger |
+| public | `qwen3.6:7b` (lokal) → z.ai GLM-4.7-Flash | `qwen3.6:27b` → z.ai GLM-4.7 | gleiche Trigger |
+| coding | `coder` (GLM-4.7-Flash lokal) | `architect` (Cloud GLM-4.7) | manuell in Cline (Plan/Act-Split bleibt) |
+
+### Auswahl-Heuristik (Default)
+
+Der Hook entscheidet **vor** dem eigentlichen LLM-Call:
+
+```
+prompt_tokens = count_tokens(messages)
+context_size  = sum(len(m.content) for m in messages)
+
+IF workflow_tag == "complex":           → Standard
+ELIF prompt_tokens > 800:               → Standard
+ELIF context_size > 4000:               → Standard
+ELIF rag_chunks_attached > 3:           → Standard
+ELSE:                                   → Fast
+```
+
+### Aufruf-Konvention erweitert
+
+Aufrufer ruft generischen Alias `voicebot-op-auto` — der Hook entscheidet intern ob Fast oder Standard:
+
+```javascript
+// n8n nutzt -auto Suffix, Selektor entscheidet
+model = `${useCase}-${tier}-auto`     // z.B. 'voicebot-op-auto'
+```
+
+Wer manuell entscheiden will, kann auch direkt `voicebot-op-fast` oder `voicebot-op-std` aufrufen.
+
+### Token-Spar-Erwartung
+
+Bei realistischem Voicebot-Mix (~70% triviale Anfragen "Wann offen?", "Termin am Dienstag?", 30% komplexe RAG):
+- Ohne Selektor: 100% an Standard → 100% Kosten
+- Mit Selektor: 70% an Fast (~10% Kosten) + 30% an Standard → **~37% Gesamtkosten**
+
+Ersparnis nur bei Cloud-Tier relevant (lokal kostet eh nichts außer RAM/Strom). Mistral Medium vs Small: Faktor 5–8× Preis-Differenz.
 
 ---
 
@@ -144,17 +250,21 @@ client.chat.completions.create(
 
 | Posten | Erwartung | Notiz |
 |---|---|---|
-| Hetzner workflows-CX33 (Coolify-Host) | €5.49 | läuft eh, LiteLLM-Container marginal +€0 |
+| Hetzner workflows **Upgrade CX33→CX43** | ~€16 | nach Crash-Diagnose, +€8–10 ggü. CX33 |
 | Hetzner Object Storage (RAG-Backups) | €4.99 | läuft eh |
 | Hetzner Backups + IPv4 + Snapshots | ~€2.50 | läuft eh |
-| **EPPCOM-LLM Server (46.224.54.65)** | **−€5–7** | **kündigen sobald Migration durch → Ersparnis** |
+| **EPPCOM-LLM Server kündigen** | **−€7** | nach erfolgreicher Migration |
 | z.ai GLM-4.7 ($3-Plan) | ~€2.80 | nur public/coding |
 | OpenRouter (GLM-5/DeepSeek) | €0–5 | nur public/coding, pay-per-use |
-| Cloudflare Tunnel | €0 | Free-Tier |
-| Strom Mac (wach während Sensitive-Slots) | ~€5–10 | abhängig von Betriebszeit; Sensitive-Tenants definieren Slot |
-| **Summe nach Migration** | **~€16–22/Monat** | praktisch kostenneutral ggü. heute, deutlich mehr LLM-Power |
+| **Mistral La Plateforme** (operational EU-Cloud) | €2–8 | Mistral Small + Medium pay-per-use, AVV inklusive |
+| Cloudflare Tunnel | €0 | Free-Tier (nur public/coding-Endpoint) |
+| WireGuard | €0 | self-hosted auf workflows-CX43 |
+| Strom Mac (Geschäftszeiten + Pre-Warm) | ~€5–10 | Mo–Fr 7:30–20:30 caffeinated |
+| **Summe nach Migration** | **~€26–35/Monat** | mehr als v3, dafür Drei-Tier-Compliance + 24/7-Operational-Verfügbarkeit |
 
-**DSGVO-Rechnung:** Selbst bei vollem Sensitive-Pfad-Volumen kein Cloud-Token-Verbrauch für Mandantendaten → Mandantenkosten = nur Strom Mac + anteilig Hetzner.
+**Provider-Vergleich (kurz):** Hetzner ist günstigster solider DE-Anbieter. Netcup wäre €3–4/Monat billiger, aber Coolify-Migration kostet mehrere Tage Setup-Aufwand → ROI nicht gegeben. Bleibt Hetzner.
+
+**DSGVO-Rechnung:** Strict-Aufrufe = €0 Cloud-Kosten (nur Mac/Strom). Operational mit Mistral = AVV-konform, EU-Hosting, klar dokumentierbar.
 
 ---
 
@@ -283,181 +393,89 @@ PUBLIC_DB_URL=sqlite:////app/litellm/public.db
 
 ### Schritt 6b — Config-File mounten
 
-In Coolify → Storages → `/app/config.yaml` als File-Mount → Inhalt:
+In Coolify → Storages → folgende Files mounten (komplette Inhalte siehe Repo `eppcom-projects/infra/litellm/`):
+
+| Mount | Source | Zweck |
+|---|---|---|
+| `/app/config.yaml` | `infra/litellm/config.yaml` | Drei-Tier Modell-Aliase + fast/standard/auto Routing |
+| `/app/hooks/sensitive_guard.py` | `infra/litellm/sensitive_guard.py` | Mac-Health, Geschäftszeiten, Wartungs-Body |
+| `/app/hooks/model_selector.py` | `infra/litellm/model_selector.py` | Auto-Wahl Fast vs Standard |
+| `/app/hooks/business_hours.json` | `infra/litellm/business_hours.json` | Tenant-Geschäftszeiten (per UUID) |
+
+### Config-Struktur (Übersicht)
 
 ```yaml
-# Two-Path-Routing für DSGVO-Compliance
 model_list:
+  # === STRICT (Mac-only) ===
+  - voicebot-strict-fast      → ollama/qwen3.6:7b   via WG http://10.8.0.10:11434
+  - voicebot-strict-std       → ollama/qwen3.6:27b  via WG
+  - voicebot-strict-auto      → routing_alias: model_selector entscheidet
+  - rag-strict-fast / -std / -auto
+  - chat-strict-fast / -std / -auto
+  - embed-strict              → ollama/nomic-embed-text via WG
 
-  # ============================================================
-  # SENSITIVE PATH — Tenant-Daten, NUR Mac, KEIN Cloud-Fallback
-  # ============================================================
-  - model_name: voicebot-sensitive
-    litellm_params:
-      model: ollama/qwen3.6:27b
-      api_base: https://mac-ollama.eppcom.de
-      timeout: 30
-      stream_timeout: 60
+  # === OPERATIONAL (Mac primary, Mistral fallback) ===
+  - voicebot-op-fast          → ollama/qwen3.6:7b   (Mac)
+  - voicebot-op-std           → ollama/qwen3.6:27b  (Mac)
+  - voicebot-op-fast-cloud    → mistral/mistral-small-latest
+  - voicebot-op-std-cloud     → mistral/mistral-medium-latest
+  - voicebot-op-auto          → selector wählt fast/std + Mac/Cloud je nach Health
+  - rag-op-* / chat-op-* / appointment-op-*
 
-  - model_name: rag-sensitive
-    litellm_params:
-      model: ollama/qwen3.6:35b-a3b
-      api_base: https://mac-ollama.eppcom.de
-      timeout: 60
+  # === PUBLIC + CODING ===
+  - voicebot-public-auto      → Mac → z.ai → OpenRouter
+  - architect / coder / power / architect-ds / reason  (Cline-Profile)
 
-  - model_name: chat-sensitive
-    litellm_params:
-      model: ollama/qwen3.6:27b
-      api_base: https://mac-ollama.eppcom.de
-
-  - model_name: embed-sensitive
-    litellm_params:
-      model: ollama/nomic-embed-text
-      api_base: https://mac-ollama.eppcom.de
-
-  # ============================================================
-  # PUBLIC PATH — unsensible Workloads, mit Cloud-Fallback
-  # ============================================================
-  - model_name: voicebot-public
-    litellm_params:
-      model: ollama/qwen3.6:27b
-      api_base: https://mac-ollama.eppcom.de
-
-  - model_name: voicebot-public-fallback
-    litellm_params:
-      model: openai/glm-4.7
-      api_base: https://api.z.ai/api/paas/v4
-      api_key: os.environ/ZAI_API_KEY
-
-  - model_name: rag-public
-    litellm_params:
-      model: ollama/qwen3.6:35b-a3b
-      api_base: https://mac-ollama.eppcom.de
-
-  - model_name: chat-public
-    litellm_params:
-      model: ollama/qwen3.6:27b
-      api_base: https://mac-ollama.eppcom.de
-
-  # ============================================================
-  # CODING PATH — eigene Arbeit (Cline auf code-server)
-  # ============================================================
-  - model_name: architect
-    litellm_params:
-      model: openai/glm-4.7
-      api_base: https://api.z.ai/api/paas/v4
-      api_key: os.environ/ZAI_API_KEY
-
-  - model_name: coder
-    litellm_params:
-      model: ollama/glm-4.7-flash
-      api_base: https://mac-ollama.eppcom.de
-
-  - model_name: power
-    litellm_params:
-      model: openrouter/z-ai/glm-5
-      api_key: os.environ/OPENROUTER_API_KEY
-
-  - model_name: architect-ds
-    litellm_params:
-      model: openrouter/deepseek/deepseek-chat
-      api_key: os.environ/OPENROUTER_API_KEY
-
-  - model_name: reason
-    litellm_params:
-      model: openrouter/deepseek/deepseek-r1
-      api_key: os.environ/OPENROUTER_API_KEY
-
-# ============================================================
-# Routing — getrennt nach Pfad
-# ============================================================
 router_settings:
   fallbacks:
-    # PUBLIC: Mac → z.ai erlaubt
-    - voicebot-public: [voicebot-public-fallback]
+    # OPERATIONAL: Mac → Mistral
+    - voicebot-op-fast: [voicebot-op-fast-cloud]
+    - voicebot-op-std:  [voicebot-op-std-cloud]
+    - rag-op-std:       [rag-op-std-cloud]
+    - appointment-op:   [appointment-op-cloud]
 
-    # CODING: vollständige Kette
-    - coder: [architect]
-    - architect: [architect-ds, power]
-    - architect-ds: [architect, power]
+    # CODING: bestehende Kette
+    - coder:            [architect]
+    - architect:        [architect-ds, power]
 
-    # SENSITIVE: KEINE Fallbacks definiert → bei Mac-Down 503
+    # STRICT: KEINE Fallbacks → SensitiveGuard wirft 503
 
-  num_retries: 1
-  request_timeout: 120
-
-# ============================================================
-# Logging — getrennt für Audit
-# ============================================================
 litellm_settings:
-  drop_params: true
-  set_verbose: false
-  # Sensitive: nur Metadaten, kein Prompt-/Response-Body
+  callbacks:
+    - sensitive_guard.proxy_handler_instance
+    - model_selector.proxy_handler_instance
+  turn_off_message_logging: true   # global Pflicht — DSGVO Datenminimierung
   redact_user_api_key_info: true
-  turn_off_message_logging: true   # für sensitive aliase Pflicht — DSGVO
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
-  database_url: os.environ/PUBLIC_DB_URL
-  budget_duration: 30d
-  max_budget: 20.0
-  # Pro-Alias-Budget bei Bedarf in litellm-UI setzen
+  database_url: os.environ/LITELLM_DB_URL
+  max_budget: 30.0
 ```
 
-> **Wichtig DSGVO:** `turn_off_message_logging: true` global, damit auch Public-Pfad keine Voicebot-Inhalte mitschreibt. Spend wird trotzdem getrackt (nur Token-Counts, keine Inhalte).
+> **Wichtig DSGVO:** `turn_off_message_logging: true` global → keine Prompt-/Response-Inhalte in DBs/Logs. Spend wird über Token-Counts trotzdem getrackt.
 
 ### Schritt 6c — Custom-Hook für Sensitive-Health-Enforcement
 
 Coolify → Storages → `/app/sensitive_guard.py` mounten:
 
-```python
-"""
-Pre-Call-Hook: Sensitive-Aliase werfen 503 wenn Mac-Backend offline.
-Verhindert dass LiteLLM still auf cloud fallback'd selbst wenn man fallbacks einträgt.
-"""
-import os, httpx, time
-from litellm.integrations.custom_logger import CustomLogger
+Komplette Implementation siehe [`infra/litellm/sensitive_guard.py`](../eppcom-projects/infra/litellm/sensitive_guard.py). Logik in Kürze:
 
-MAC_HEALTH_URL = "https://mac-ollama.eppcom.de/api/tags"
-CACHE_TTL = 30
-_cache = {"ts": 0, "ok": False}
+1. **Strict-Aliase identifizieren** (Pattern: `*-strict-*`)
+2. **Mac-Health prüfen** über WG-IP `http://10.8.0.10:11434/api/tags` (Cache 30s)
+3. **Geschäftszeiten-Auswertung** via `business_hours.json` + Tenant-ID aus Header
+4. **Wartungs-Body** statt nackter 503: `user_message` enthält ready-to-use TTS-Text
+5. **Audit-Log** für jede 503-Anomalie (Tenant + Workflow + Timestamp)
 
-SENSITIVE_PREFIXES = ("voicebot-sensitive", "rag-sensitive", "chat-sensitive", "embed-sensitive")
+### Schritt 6c2 — Auto-Modell-Selektor
 
-def mac_alive() -> bool:
-    if time.time() - _cache["ts"] < CACHE_TTL:
-        return _cache["ok"]
-    try:
-        r = httpx.get(MAC_HEALTH_URL, timeout=3)
-        ok = r.status_code == 200 and len(r.json().get("models", [])) > 0
-    except Exception:
-        ok = False
-    _cache.update(ts=time.time(), ok=ok)
-    return ok
+Komplette Implementation siehe [`infra/litellm/model_selector.py`](../eppcom-projects/infra/litellm/model_selector.py). Logik:
 
-class SensitiveGuard(CustomLogger):
-    async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
-        model = data.get("model", "")
-        if model.startswith(SENSITIVE_PREFIXES) and not mac_alive():
-            from fastapi import HTTPException
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "sensitive_backend_offline",
-                    "message": "DSGVO-Tenant-Backend (Mac-Ollama) nicht erreichbar. Wartungsfenster.",
-                    "retry_after": 3600,
-                }
-            )
-        return data
-
-proxy_handler_instance = SensitiveGuard()
-```
-
-In `config.yaml` zusätzlich:
-```yaml
-litellm_settings:
-  callbacks: ["sensitive_guard.proxy_handler_instance"]
-```
+1. Prüft ob Aufruf-Modell auf `-auto` endet (z.B. `voicebot-op-auto`)
+2. Zählt Token im Prompt + RAG-Context-Größe
+3. Tag-Trigger im `extra_headers["X-Complexity"]` respektieren (`simple` / `complex`)
+4. Rewrite `data["model"]` auf `-fast` oder `-std` Variante BEVOR LiteLLM-Routing greift
+5. Bei Mac-Down zusätzlich `-cloud`-Suffix wenn Operational/Public-Tier (Mistral/z.ai)
 
 ### Schritt 6d — Verifizieren
 
@@ -484,43 +502,99 @@ curl -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
 
 Mac → Hetzner LiteLLM. Subdomain `mac-ollama.eppcom.de`. Tunnel terminiert in der Cloudflare-Edge, Hetzner LiteLLM ruft die HTTPS-URL auf (kein direktes IP-Routing nötig).
 
-```bash
-# Auf Mac
-cloudflared tunnel login                        # Browser, eppcom.de auswählen
-cloudflared tunnel create mac-ollama
-cloudflared tunnel route dns mac-ollama mac-ollama.eppcom.de
+**v4-Architektur:** Zwei Tunnel-Pfade.
+- **WireGuard** Mac → Hetzner für Ollama-Backend (Strict + Operational primary). Direkt, kein Drittanbieter, §203-tauglich.
+- **Cloudflare Tunnel** Hetzner → Internet für `litellm.eppcom.de` (öffentlicher API-Endpoint, von Cline/Voicebot/n8n aufgerufen).
 
-# Config — Editor statt Heredoc (zsh-safe!)
-nano ~/.cloudflared/config.yml
-```
-
-Inhalt (`UUID` durch Output von `ls ~/.cloudflared/*.json` ersetzen):
-
-```yaml
-tunnel: mac-ollama
-credentials-file: /Users/marcel/.cloudflared/UUID.json
-
-ingress:
-  - hostname: mac-ollama.eppcom.de
-    service: http://localhost:11434              # Ollama direkt, KEIN LiteLLM auf Mac mehr
-    originRequest:
-      connectTimeout: 30s
-      noTLSVerify: true
-  - service: http_status:404
-```
+### 7a — WireGuard-Server auf Hetzner workflows
 
 ```bash
-sudo cloudflared service install
-brew services start cloudflared
+# Auf workflows-CX43 (per SSH)
+sudo apt update && sudo apt install -y wireguard
+sudo sysctl -w net.ipv4.ip_forward=1
+echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
 
-# Test — Mac Ollama public erreichbar via Cloudflare
-curl -s https://mac-ollama.eppcom.de/api/tags | python3 -m json.tool | head -10
+cd /etc/wireguard
+sudo wg genkey | sudo tee server.key | sudo wg pubkey | sudo tee server.pub
+sudo wg genkey | sudo tee mac.key | sudo wg pubkey | sudo tee mac.pub
+sudo chmod 600 *.key
 ```
 
-**Sicherheit Ollama-Endpoint:** Ollama hat keine native Auth. Optionen:
-1. **Cloudflare Access** (empfohlen): Zero Trust → Application → `mac-ollama.eppcom.de` → Service-Token-Policy. LiteLLM-Container schickt Service-Token-Header bei jedem Aufruf
-2. **Cloudflare WAF-Rule**: nur Hetzner-IP `94.130.170.167` erlauben
-3. Minimum: Mac-Firewall blockt Port 11434 außer für `localhost` + Cloudflared
+Config `/etc/wireguard/wg0.conf` (Server) — siehe Template [`infra/litellm/wg0-server.conf.template`](../eppcom-projects/infra/litellm/wg0-server.conf.template):
+
+```ini
+[Interface]
+Address = 10.8.0.1/24
+ListenPort = 51820
+PrivateKey = <inhalt von /etc/wireguard/server.key>
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT
+
+[Peer]
+# Mac
+PublicKey = <inhalt von /etc/wireguard/mac.pub>
+AllowedIPs = 10.8.0.10/32
+```
+
+```bash
+sudo systemctl enable --now wg-quick@wg0
+sudo wg show
+```
+
+Hetzner Cloud Firewall: UDP 51820 öffnen für 0.0.0.0/0 (Mac kann hinter beliebigem NAT sein).
+
+### 7b — WireGuard-Client auf Mac
+
+Install: `brew install wireguard-tools`. Config `/usr/local/etc/wireguard/wg0.conf` (oder via WireGuard.app aus dem App Store, GUI-Version komfortabler):
+
+```ini
+[Interface]
+Address = 10.8.0.10/24
+PrivateKey = <inhalt von ~/wg/mac.key>
+DNS = 1.1.1.1
+MTU = 1420
+
+[Peer]
+PublicKey = <inhalt von ~/wg/server.pub>
+Endpoint = 94.130.170.167:51820
+AllowedIPs = 10.8.0.0/24
+PersistentKeepalive = 25
+```
+
+Tunnel aktivieren:
+- WireGuard.app: "Activate"
+- CLI: `sudo wg-quick up wg0`
+
+Test: `ping 10.8.0.1` (Hetzner) sollte antworten. `curl http://10.8.0.10:11434/api/tags` von Hetzner aus muss Mac-Ollama liefern.
+
+### 7c — Mac-Härtung (Ollama bind + pf)
+
+Statt `OLLAMA_HOST=0.0.0.0:11434` direkt auf WG-IP binden — engerer Sicherheitsrand:
+
+```bash
+# In ~/.zshrc
+export OLLAMA_HOST=10.8.0.10:11434
+
+# auch via launchctl für brew-Service
+launchctl setenv OLLAMA_HOST 10.8.0.10:11434
+brew services restart ollama
+```
+
+Zusätzlich pf-Firewall als Defense-in-Depth (`/etc/pf.eppcom.conf`):
+```
+block in proto tcp from any to any port 11434
+pass in on utun3 proto tcp from 10.8.0.1 to 10.8.0.10 port 11434
+```
+(`utun3` ist typischerweise das WG-Interface — mit `ifconfig | grep utun` verifizieren)
+
+```bash
+sudo pfctl -e
+sudo pfctl -f /etc/pf.eppcom.conf
+```
+
+### 7d — Cloudflare Tunnel für LiteLLM-API (öffentlich)
+
+Hetzner exponiert `litellm.eppcom.de` via Coolify-eigenen Cloudflare-Tunnel oder Traefik. **Hier ist Cloudflare unkritisch**, weil dieser Endpoint öffentlich sein soll und nur per `LITELLM_MASTER_KEY` authentifiziert wird. Tenant-Inhalte fließen über LiteLLM → Mac (WG, kein Cloudflare).
 
 ---
 
@@ -552,10 +626,12 @@ Bestehende Voicebot-Konfig zeigt heute auf Server 2 Ollama (`46.224.54.65:11434`
 LLM_BASE_URL=http://46.224.54.65:11434/v1
 LLM_MODEL=qwen3-voice:latest
 
-# Nachher (compliance_tier kommt aus Tenant-DB pro Call)
+# Nachher v4 (Drei-Tier mit Auto-Selektor)
 LLM_BASE_URL=https://litellm.eppcom.de/v1
 LLM_API_KEY=<LITELLM_MASTER_KEY>
-LLM_MODEL_TEMPLATE=voicebot-{tier}        # tier ∈ {sensitive, public}
+LLM_MODEL_TEMPLATE=voicebot-{tier}-auto   # tier ∈ {strict, op, public}
+# Voicebot setzt zusätzlich: X-Tenant-ID, X-Workflow, X-Tier headers
+# Bei 503 + body.user_message → TTS abspielen statt Fehler
 ```
 
 ### n8n-Workflow
