@@ -15,7 +15,7 @@
 
 ```
  ┌─────────────────────┐    ┌────────────────────────────────────────────────┐
- │ Tenant-Workloads    │    │ Hetzner workflows (CX33→CX43) 24/7 in Nürnberg │
+ │ Tenant-Workloads    │    │ Hetzner workflows (CX33, Ziel: CX43) 24/7 Nürnberg │
  │ Anwälte, Ärzte,     │    │                                                │
  │ Steuerberater,      │    │   Coolify ─► n8n / Typebot / Postgres / RAG    │
  │ Makler, Handwerker, │    │                                                │
@@ -250,7 +250,7 @@ Ersparnis nur bei Cloud-Tier relevant (lokal kostet eh nichts außer RAM/Strom).
 
 | Posten | Erwartung | Notiz |
 |---|---|---|
-| Hetzner workflows **Upgrade CX33→CX43** | ~€16 | nach Crash-Diagnose, +€8–10 ggü. CX33 |
+| Hetzner workflows **CX33** (aktuell) | ~€8–10 | Upgrade auf CX43 sobald verfügbar — CX43 nicht CPX42! |
 | Hetzner Object Storage (RAG-Backups) | €4.99 | läuft eh |
 | Hetzner Backups + IPv4 + Snapshots | ~€2.50 | läuft eh |
 | **EPPCOM-LLM Server kündigen** | **−€7** | nach erfolgreicher Migration |
@@ -258,7 +258,7 @@ Ersparnis nur bei Cloud-Tier relevant (lokal kostet eh nichts außer RAM/Strom).
 | OpenRouter (GLM-5/DeepSeek) | €0–5 | nur public/coding, pay-per-use |
 | **Mistral La Plateforme** (operational EU-Cloud) | €2–8 | Mistral Small + Medium pay-per-use, AVV inklusive |
 | Cloudflare Tunnel | €0 | Free-Tier (nur public/coding-Endpoint) |
-| WireGuard | €0 | self-hosted auf workflows-CX43 |
+| WireGuard | €0 | self-hosted auf workflows-CX33/CX43 |
 | Strom Mac (Geschäftszeiten + Pre-Warm) | ~€5–10 | Mo–Fr 7:30–20:30 caffeinated |
 | **Summe nach Migration** | **~€26–35/Monat** | mehr als v3, dafür Drei-Tier-Compliance + 24/7-Operational-Verfügbarkeit |
 
