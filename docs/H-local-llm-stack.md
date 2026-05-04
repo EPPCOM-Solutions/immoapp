@@ -13,46 +13,61 @@
 
 ## 0. TL;DR
 
+### Server-Übersicht (Ist → Soll)
+
+| Service | Jetzt (Ist) | Nach Migration (Soll) |
+|---|---|---|
+| PostgreSQL (RAG + Tenants) | **Server 1** CX33 | Server 1 CX33 |
+| n8n | **Server 1** CX33 | Server 1 CX33 |
+| Homepage eppcom.de | **Server 1** CX33 | Server 1 CX33 |
+| LiteLLM Router | **Server 1** CX33 (neu) | Server 1 CX33 |
+| Ollama Micro (nomic + qwen3:1.7b) | **Server 1** CX33 (neu) | Server 1 CX33 |
+| Typebot | **Server 2** 46.224.54.65 | → Server 1 CX33 |
+| LiveKit | **Server 2** 46.224.54.65 | → Server 1 CX33 |
+| Voicebot | **Server 2** 46.224.54.65 | → Server 1 CX33 |
+| Ollama (groß, Tenant-LLM) | **Server 2** 46.224.54.65 | → Mac via WireGuard |
+| LivingMatch App + DB | **Server 2** 46.224.54.65 | → Server 1 CX33 |
+
+> **Migrationsstrategie:** Server 2 erst kündigen nach 1 Woche erfolgreichem Pilot-Betrieb
+> aller Services auf Server 1. CX33 mit 8GB RAM wird knapp — CX43-Upgrade sobald
+> bei Hetzner wieder verfügbar (Stand 2026-05-04 ausverkauft).
+
+### Architektur-Diagramm
+
 ```
- ┌─────────────────────┐    ┌────────────────────────────────────────────────┐
- │ Tenant-Workloads    │    │ Hetzner workflows (CX33) 24/7 in Nürnberg          │
- │ Anwälte, Ärzte,     │    │                                                │
- │ Steuerberater,      │    │   Coolify ─► n8n / Typebot / Postgres / RAG    │
- │ Makler, Handwerker, │    │                                                │
- │ Verkäufer,          │    │   ★ LiteLLM-Router :4000 ─► litellm.eppcom.de  │
- │ Kundenunternehmen   │ ──►│     │                                          │
- │                     │    │     ├─ STRICT  (§203, Akten, Diagnosen)        │
- │ + Cline (eigenes)   │    │     │   └─ Mac via WireGuard, KEIN Fallback    │
- └─────────────────────┘    │     │       ↳ off → Wartungsmeldung-Antwort    │
-                            │     │                                          │
-                            │     ├─ OPERATIONAL  (Termin, Bestellung, RAG)  │
-                            │     │   ├─ Mac primary (Geschäftszeiten)       │
-                            │     │   └─ Mistral La Plateforme (EU/AVV)      │
-                            │     │       ↳ 24/7, automatischer Fallback     │
-                            │     │                                          │
-                            │     └─ PUBLIC + CODING                         │
-                            │         ├─ Mac → z.ai → OpenRouter             │
-                            │         └─ DeepSeek nur für eigenen Code       │
-                            └────────▲────────▲──────────────────────────────┘
-                                     │        │
-                                     │        │ Cloudflare Tunnel
-                                     │        │ litellm.eppcom.de (public API)
-                                     │
-                                     │ WireGuard 10.8.0.0/24 (UDP 51820)
-                                     │ direct, kein Drittanbieter im TLS-Pfad
- ┌───────────────────────────────────┴───────────────────────────┐
- │  MacBook M4 Pro (48GB, ext. SSD /Volumes/LLM)                 │
- │                                                               │
- │   Ollama bound auf 10.8.0.10:11434 (NICHT 0.0.0.0!)           │
- │   pf-Firewall: nur utun0 (WG) Zugriff auf 11434               │
- │                                                               │
- │     - qwen3.6:27b           (Voicebot/RAG strict+operational) │
- │     - glm-4.7-flash         (eigener Coder)                   │
- │     - nomic-embed-text      (Embeddings, resident)            │
- │   OLLAMA_MAX_LOADED_MODELS=1, KEEP_ALIVE pro-Modell via Cron  │
- │                                                               │
- │   Obsidian Vault (Git-synced) ─► Smart Connections (lokal)    │
- └───────────────────────────────────────────────────────────────┘
+ ┌─────────────────────┐    ┌──────────────────────────────────────────────────────────────┐
+ │ Tenant-Workloads    │    │  SERVER 1 — Hetzner workflows CX33 (94.130.170.167)          │
+ │ Anwälte, Ärzte,     │    │  Coolify-Host — 24/7                                         │
+ │ Steuerberater,      │    │                                                              │
+ │ Makler, Handwerker, │    │  [Jetzt]  n8n · PostgreSQL · Homepage                        │
+ │ Verkäufer,          │    │  [Neu]    LiteLLM-Router · Ollama-Micro (nomic + qwen3:1.7b) │
+ │ Kundenunternehmen   │ ──►│  [Später] Typebot · LiveKit · Voicebot · LivingMatch          │
+ │                     │    │                                                              │
+ │ + Cline (eigenes)   │    │  ★ LiteLLM :4000 ─► litellm.eppcom.de (Cloudflare Tunnel)   │
+ └─────────────────────┘    │    │                                                         │
+                            │    ├─ STRICT  (§203, nur Mac via WireGuard)                  │
+                            │    │    └─ Mac off → 503 Wartungsmeldung                     │
+                            │    │    └─ Embedding: Mac → CX33-nomic (Hetzner DE, ok)      │
+                            │    │                                                         │
+                            │    ├─ OPERATIONAL  (Termin, RAG, Bestellung)                 │
+                            │    │    Mac → CX33-Micro → Mistral EU (3-stufig)             │
+                            │    │    CX33-Micro = immer an, auch Mac offline              │
+                            │    │                                                         │
+                            │    └─ PUBLIC + CODING                                        │
+                            │         Mac → z.ai → OpenRouter                              │
+                            └──────────────────────▲───────────────────────────────────────┘
+                                                   │ WireGuard 10.8.0.0/24 (UDP 51820)
+ ┌─────────────────────────────────────────────────┴──────────────────────┐
+ │  SERVER 2 — EPPCOM-LLM 46.224.54.65 (wird gekündigt nach Migration)    │
+ │  [Jetzt] Typebot · LiveKit · Voicebot · Ollama (groß) · LivingMatch    │
+ │  [Soll]  leer → kündigen                                               │
+ └────────────────────────────────────────────────────────────────────────┘
+ ┌─────────────────────────────────────────────────┐
+ │  MacBook M4 Pro (48GB, ext. SSD /Volumes/LLM)   │
+ │  Ollama 10.8.0.10:11434 (WireGuard-IP only)     │
+ │  qwen3.6:7b · qwen3.6:27b · glm-4.7-flash       │
+ │  nomic-embed-text · KEEP_ALIVE 30m              │
+ └─────────────────────────────────────────────────┘
 ```
 
 **Drei DSGVO-Kernregeln:**
@@ -253,17 +268,24 @@ Ersparnis nur bei Cloud-Tier relevant (lokal kostet eh nichts außer RAM/Strom).
 
 | Posten | Erwartung | Notiz |
 |---|---|---|
-| Hetzner workflows **CX33** (dauerhaft) | ~€8–10 | Kein Upgrade geplant — CX-Server bei Hetzner ausverkauft (Stand 2026-05-04), CPX-Serie nicht sinnvoll (weniger Storage, teurer) |
+| Hetzner workflows **CX33** (Server 1) | ~€8–10 | Läuft n8n + Postgres + Homepage + LiteLLM + Ollama-Micro |
+| Hetzner **EPPCOM-LLM** (Server 2) | ~€7 | **kündigen** nach vollständiger Migration |
 | Hetzner Object Storage (RAG-Backups) | €4.99 | läuft eh |
 | Hetzner Backups + IPv4 + Snapshots | ~€2.50 | läuft eh |
-| **EPPCOM-LLM Server kündigen** | **−€7** | nach erfolgreicher Migration |
 | z.ai GLM-4.7 ($3-Plan) | ~€2.80 | nur public/coding |
 | OpenRouter (GLM-5/DeepSeek) | €0–5 | nur public/coding, pay-per-use |
 | **Mistral La Plateforme** (operational EU-Cloud) | €2–8 | Mistral Small + Medium pay-per-use, AVV inklusive |
-| Cloudflare Tunnel | €0 | Free-Tier (nur public/coding-Endpoint) |
-| WireGuard | €0 | self-hosted auf workflows-CX33 |
+| Cloudflare Tunnel | €0 | Free-Tier |
+| WireGuard | €0 | self-hosted auf CX33 |
 | Strom Mac (Geschäftszeiten + Pre-Warm) | ~€5–10 | Mo–Fr 7:30–20:30 caffeinated |
-| **Summe nach Migration** | **~€26–35/Monat** | mehr als v3, dafür Drei-Tier-Compliance + 24/7-Operational-Verfügbarkeit |
+| **Summe jetzt (2 Server)** | **~€33–43/Monat** | Übergangsphase |
+| **Summe nach Migration** | **~€26–36/Monat** | Server 2 gekündigt, CX33 trägt alles |
+
+> ⚠️ **RAM-Warnung nach Vollkonsolidierung auf CX33 (8GB):**
+> Typebot + LiveKit + Voicebot + LivingMatch + n8n + Postgres + LiteLLM + Ollama-Micro
+> = voraussichtlich 6–7.5GB RAM. CX33 wird sehr eng.
+> **CX43-Upgrade (16GB, ~€16/mo) ist Voraussetzung für vollständige Konsolidierung.**
+> Upgrade sobald bei Hetzner wieder verfügbar — bis dahin Server 2 NICHT kündigen.
 
 **Provider-Vergleich (kurz):** Hetzner ist günstigster solider DE-Anbieter. Netcup wäre €3–4/Monat billiger, aber Coolify-Migration kostet mehrere Tage Setup-Aufwand → ROI nicht gegeben. Bleibt Hetzner.
 

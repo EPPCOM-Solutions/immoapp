@@ -391,17 +391,28 @@ curl -s http://127.0.0.1:11434/api/generate \
 # Vom lokalen Rechner: curl http://94.130.170.167:11434  → Connection refused (korrekt)
 ```
 
-**RAM-Budget auf CX33 nach diesem Setup:**
-| Service | RAM |
-|---|---|
-| Coolify + Traefik | ~500MB |
-| PostgreSQL | ~300MB |
-| n8n | ~400MB |
-| LiteLLM | ~300MB |
-| **Ollama: nomic-embed-text** | ~270MB |
-| **Ollama: qwen3:1.7b** | ~1.1GB |
-| OS + Buffer | ~600MB |
-| **Gesamt** | **~3.5GB** von 8GB |
+**RAM-Budget auf CX33 — Ist und Soll:**
+
+| Service | RAM | Wo jetzt | Nach Migration |
+|---|---|---|---|
+| Coolify + Traefik | ~500MB | Server 1 | Server 1 |
+| PostgreSQL (RAG + Tenants) | ~300MB | Server 1 | Server 1 |
+| n8n | ~400MB | Server 1 | Server 1 |
+| Homepage eppcom.de | ~100MB | Server 1 | Server 1 |
+| LiteLLM Router | ~300MB | Server 1 (neu) | Server 1 |
+| Ollama: nomic-embed-text | ~270MB | Server 1 (neu) | Server 1 |
+| Ollama: qwen3:1.7b | ~1.1GB | Server 1 (neu) | Server 1 |
+| OS + Buffer | ~600MB | Server 1 | Server 1 |
+| **Zwischensumme jetzt** | **~3.5GB** | | |
+| Typebot | ~400MB | **Server 2** | → Server 1 |
+| LiveKit | ~600MB | **Server 2** | → Server 1 |
+| Voicebot | ~300MB | **Server 2** | → Server 1 |
+| LivingMatch App + DB | ~500MB | **Server 2** | → Server 1 |
+| **Gesamt nach Vollmigration** | **~5.8–6.5GB** von 8GB | | ⚠️ sehr eng |
+
+> ⚠️ **CX43-Upgrade (16GB) ist Voraussetzung für Vollmigration.**
+> Server 2 (46.224.54.65) erst kündigen wenn CX43 verfügbar und migriert.
+> Aktuell (Stand 2026-05-04): CX-Server ausverkauft → Server 2 läuft weiter.
 
 ### B2: WireGuard auf Hetzner einrichten
 
@@ -511,6 +522,54 @@ curl https://litellm.eppcom.de/v1/chat/completions \
     "messages": [{"role": "user", "content": "Test Fallback"}]
   }' | python3 -m json.tool
 # Soll auch bei Mac-off antworten (Mistral-Fallback greift)
+```
+
+### B5: Server-2-Migration (Typebot, LiveKit, Voicebot, LivingMatch → Server 1)
+
+> **Voraussetzung: CX43-Upgrade auf Server 1 vor diesem Schritt.**
+> Mit 8GB RAM (CX33) ist die Vollmigration nicht stabil möglich.
+> Reihenfolge: CX43 verfügbar → upgrade → testen → Server 2 kündigen.
+
+```bash
+# Schritt 1: Snapshot von Server 2 erstellen (Hetzner-Console)
+# Hetzner Console → Server 46.224.54.65 → Snapshots → Snapshot erstellen
+# (Fallback bei Migrationsproblemen)
+
+# Schritt 2: Typebot auf Server 1 deployen (via Coolify)
+# Coolify-Dashboard Server 1 → New Resource → Docker Compose
+# Typebot-Env-Vars: DATABASE_URL, NEXTAUTH_URL, SMTP_*, S3_*
+# DNS: typebot.eppcom.de → Server 1 IP
+
+# Schritt 3: LiveKit auf Server 1 deployen
+# LiveKit benötigt eigene Ports: UDP 7882 (WebRTC), TCP 7880 (API)
+# Hetzner-Firewall Server 1: UDP 7882 + TCP 7880 öffnen
+# Coolify → New Resource → Docker Image: livekit/livekit-server
+# Config: /etc/livekit.yaml mit neuem API-Key/Secret
+
+# Schritt 4: Voicebot-Env auf neues LiteLLM-Endpoint umstellen
+# (unabhängig von Server-Migration — Voicebot spricht eh litellm.eppcom.de)
+# Env-Var im Voicebot-Container:
+#   LLM_BASE_URL=https://litellm.eppcom.de/v1
+#   LLM_MODEL=voicebot-op-auto
+# Nach Update: Voicebot auf Server 1 deployen
+
+# Schritt 5: LivingMatch App + DB auf Server 1
+# DB-Migration: pg_dump auf Server 2 → pg_restore auf Server 1
+ssh root@46.224.54.65 'pg_dump -U livingmatch livingmatch | gzip' > livingmatch_backup.sql.gz
+ssh root@94.130.170.167 'gunzip -c - | psql -U livingmatch livingmatch' < livingmatch_backup.sql.gz
+# Coolify Server 1 → LivingMatch App deployen, DB-URL auf Server 1 zeigen
+
+# Schritt 6: DNS-Cutover (alle Domains von Server 2 auf Server 1 umstellen)
+# livingmatch.app, livingmatch.de → Server 1 IP
+# typebot.*, livekit.* → Server 1 IP
+
+# Schritt 7: 1 Woche Beobachtungsphase
+# Logs prüfen, RAM-Auslastung überwachen:
+ssh root@94.130.170.167 'watch -n 5 free -h'
+
+# Schritt 8: Server 2 kündigen (erst nach 1 Woche stabilem Betrieb!)
+# Hetzner Console → Server 46.224.54.65 → Löschen
+# Snapshot vorher: noch 1 Monat nach Kündigung bei Hetzner verfügbar
 ```
 
 ---
