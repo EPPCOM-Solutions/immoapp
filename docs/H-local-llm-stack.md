@@ -56,13 +56,16 @@
 ```
 
 **Drei DSGVO-Kernregeln:**
-1. **Strict:** NIEMALS Cloud, auch nicht "kurz für Notfall". Mac off → Wartungsmeldung an Anrufer (Body), HTTP 503 Maschine-zu-Maschine
-2. **Operational:** Mac primary, EU-Cloud (Mistral FR mit AVV) als auto-Fallback. 24/7 Verfügbarkeit für Termine/Bestellungen/RAG
+1. **Strict:** NIEMALS Cloud. Mac off → Wartungsmeldung (503). Embedding-Fallback auf CX33 erlaubt (Hetzner DE = EPPCOM-eigene Infra)
+2. **Operational:** Mac primary → **CX33-Micro** (immer an) → Mistral EU-Cloud. 24/7 auch wenn Mac komplett offline
 3. **Public + Coding:** alles erlaubt, Cost-Optimierung im Vordergrund
 
+**Fallback-Kette Operational:** Mac (groß+schnell) → CX33 qwen3:1.7b (immer an, ~3-5 t/s CPU) → Mistral (EU-AVV Cloud)
+**Embedding immer verfügbar:** Mac nomic → CX33 nomic (127.0.0.1, resident, -1 keep_alive)
+
 **Kosten-Ziel:** ~€10–18/Monat (Server-2-Kündigung −€7, Mistral pay-per-use ~€2–5; kein CX-Upgrade — keine CX-Server bei Hetzner verfügbar Stand 2026-05-04)
-**Latenz-Ziel:** Mac via WG <500ms TTFT (kein Cloudflare-Hop), Mistral <1.2s, z.ai <1.5s
-**Verfügbarkeit:** Operational/Public 99.5% (Cloud-Fallback), Strict = Mac-Verfügbarkeit (Geschäftszeiten-Pflege)
+**Latenz-Ziel:** Mac via WG <500ms TTFT, CX33-Micro ~2-4s (CPU, akzeptabel für Fallback), Mistral <1.2s
+**Verfügbarkeit:** Operational/Embedding 99.9% (CX33 immer an), Strict-LLM = Mac-Verfügbarkeit
 
 ---
 
@@ -77,7 +80,7 @@
 | Coder-Modell (lokal, eigene Arbeit) | **GLM-4.7-Flash 30B-A3B** (~17GB) | 3B aktiv → schnell, Familie-konsistent zu z.ai-Architect |
 | Alternative (lokal) | **gemma4:31b** | Backup wenn qwen-Output schwächelt |
 | Embedding (lokal) | **nomic-embed-text** (~270MB) | Smart Connections, Obsidian-RAG, Tenant-RAG |
-| **Router** | **LiteLLM auf Hetzner workflows-CX33** (Coolify-Container) | 24/7 erreichbar auch wenn Mac off, getrennte sensitive/public-Pfade |
+| **Router + Micro-LLM** | **LiteLLM + Ollama auf Hetzner workflows-CX33** | 24/7; Ollama mit qwen3:1.7b + nomic-embed-text resident (~1.4GB RAM) |
 | Tunnel | **Cloudflare Tunnel `mac-ollama.eppcom.de`** Mac → Hetzner | Mac exponiert NUR Ollama, nicht den Router-Layer |
 | Architect-Cloud (public/coding only) | **GLM-4.7** via z.ai | Plan-Mode für eigene Coding-Tasks, NIE für Mandantendaten |
 | Power-Up (public/coding only) | **GLM-5** via OpenRouter | Hardcore-Architektur eigener Code |

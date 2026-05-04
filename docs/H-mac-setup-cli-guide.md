@@ -332,6 +332,77 @@ Bei OOM-Events auf CX33: LiteLLM-Container-RAM-Limit in Coolify setzen (max 4GB)
 Postgres `shared_buffers` reduzieren, n8n-Worker-Anzahl begrenzen.
 Ein Upgrade ist erst wieder möglich wenn Hetzner CX-Server nachliefert.
 
+### B1.5: Ollama auf CX33 einrichten (Micro-Modelle, immer verfügbar)
+
+**Zweck:** Chatbot und Embedding bleiben 24/7 erreichbar — auch wenn Mac M4 offline ist.
+CX33 läuft Ollama mit zwei Micro-Modellen resident im RAM (~1.4GB gesamt):
+- `nomic-embed-text` (270MB) — Embeddings für RAG, dauerhaft resident
+- `qwen3:1.7b` (1.1GB) — kleinstes brauchbares Chat-Modell, ~3-5 t/s auf CPU
+
+LiteLLM Fallback-Kette Operational: **Mac → CX33 (immer an) → Mistral EU-Cloud**
+
+```bash
+# Script direkt auf den Hetzner-Server streamen und ausführen:
+ssh root@94.130.170.167 'bash -s' < eppcom-projects/infra/litellm/hetzner-ollama-setup.sh
+
+# Oder manuell Schritt für Schritt:
+ssh root@94.130.170.167
+
+# 1. Ollama installieren:
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. Ollama auf 127.0.0.1 binden (NICHT extern erreichbar):
+mkdir -p /etc/systemd/system/ollama.service.d
+cat > /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
+[Service]
+Environment="OLLAMA_HOST=127.0.0.1:11434"
+Environment="OLLAMA_MAX_LOADED_MODELS=2"
+Environment="OLLAMA_KEEP_ALIVE=-1"
+EOF
+systemctl daemon-reload && systemctl enable ollama && systemctl restart ollama
+sleep 3
+
+# 3. Micro-Modelle laden:
+ollama pull nomic-embed-text   # ~270MB, Embeddings
+ollama pull qwen3:1.7b         # ~1.1GB, Chat-Fallback
+
+# 4. Modelle resident machen (keep_alive=-1 = nie entladen):
+curl -s http://127.0.0.1:11434/api/generate \
+  -d '{"model":"nomic-embed-text","keep_alive":-1,"prompt":""}' >/dev/null
+curl -s http://127.0.0.1:11434/api/generate \
+  -d '{"model":"qwen3:1.7b","keep_alive":-1,"prompt":""}' >/dev/null
+
+# 5. Verifikation — beide Modelle resident:
+curl -s http://127.0.0.1:11434/api/ps | python3 -m json.tool
+# Erwartet: {"models":[{"name":"nomic-embed-text",...},{"name":"qwen3:1.7b",...}]}
+
+# 6. Embedding-Test:
+curl -s http://127.0.0.1:11434/api/embeddings \
+  -d '{"model":"nomic-embed-text","prompt":"Test"}' \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d['embedding']), 'dims')"
+# Erwartet: 768 dims
+
+# 7. Chat-Test:
+curl -s http://127.0.0.1:11434/api/generate \
+  -d '{"model":"qwen3:1.7b","prompt":"Sag kurz Hallo","stream":false}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['response'][:80])"
+
+# 8. Sicherheit — extern NICHT erreichbar:
+# Vom lokalen Rechner: curl http://94.130.170.167:11434  → Connection refused (korrekt)
+```
+
+**RAM-Budget auf CX33 nach diesem Setup:**
+| Service | RAM |
+|---|---|
+| Coolify + Traefik | ~500MB |
+| PostgreSQL | ~300MB |
+| n8n | ~400MB |
+| LiteLLM | ~300MB |
+| **Ollama: nomic-embed-text** | ~270MB |
+| **Ollama: qwen3:1.7b** | ~1.1GB |
+| OS + Buffer | ~600MB |
+| **Gesamt** | **~3.5GB** von 8GB |
+
 ### B2: WireGuard auf Hetzner einrichten
 
 ```bash
