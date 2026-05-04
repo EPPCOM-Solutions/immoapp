@@ -17,7 +17,7 @@ Mac und Hetzner. Drei Compliance-Tiers (strict/operational/public).
 - `eppcom-projects` → Infra-Configs unter `infra/litellm/`
 - `immoapp` → Voicebot-Code, App, RAG
 
-**Hetzner workflows-Server:** `94.130.170.167` (CX33, Ziel-Upgrade CX43 — Stand 2026-05-04 ausverkauft, siehe Hinweis unten)
+**Hetzner workflows-Server:** `94.130.170.167` (CX33, 4 vCPU / 8GB RAM / 80GB NVMe — kein Upgrade geplant, alle CX-Server bei Hetzner ausverkauft Stand 2026-05-04)
 
 ---
 
@@ -310,12 +310,15 @@ rm -rf ~/.ollama   # Erst nach vollständiger Verifikation!
 
 Alle Befehle via SSH: `ssh root@94.130.170.167`
 
-### B1: Crash-Diagnose + Server-Upgrade-Strategie
+### B1: Crash-Diagnose (CX33 ist dauerhaftes Setup)
+
+**Stand 2026-05-04: Alle CX-Server bei Hetzner ausverkauft. CX33 bleibt dauerhafter Router.**
+CPX-Serie (dedizierte AMD) ist kein sinnvoller Ersatz: weniger Storage (40GB vs 80GB NVMe), höherer Preis.
 
 ```bash
 ssh root@94.130.170.167
 
-# OOM-Ereignisse in Kernel-Log prüfen:
+# OOM-Ereignisse in Kernel-Log prüfen (bei CX33 mit 8GB RAM relevant):
 journalctl -k | grep -iE "oom|killed|panic" | tail -20
 
 # Speichernutzung aktuell:
@@ -325,23 +328,9 @@ free -h
 ps aux --sort=-%mem | head -10
 ```
 
-**Upgrade-Ziel: CX43** — 8 vCPU, 16GB RAM, 160GB NVMe, ~€16/Monat (CX-Serie Intel/AMD)
-
-> **Achtung: CPX42 ist KEIN gutes Interim (Stand 2026-05-04 CX43 ausverkauft):**
-> - CPX42 kostet €25.49/mo (60% teurer als CX43)
-> - CPX42 hat nur 40GB SSD — CX33 hat 80GB NVMe
-> - Rescale CX33→CPX42 schlägt fehl oder braucht manuelles Disk-Shrink
-> - CPX42→CX43 wäre danach ein weiteres Rescale-Fenster
->
-> **Empfehlung:** Auf CX33 bleiben, OOM-Diagnose durchführen, CX43-Verfügbarkeit
-> in Hetzner-Console regelmäßig prüfen. CX43 erscheint im Tab "x86 (Intel/AMD)",
-> NICHT im CPX-Tab (dedizierte AMD-CPUs).
-
-```bash
-# Wenn OOM-Events vorhanden und CX43 verfügbar:
-# Hetzner Console → Server workflows → Rescale → x86 (Intel/AMD) Tab → CX43
-# (Server wird kurz neu gestartet, IP bleibt gleich)
-```
+Bei OOM-Events auf CX33: LiteLLM-Container-RAM-Limit in Coolify setzen (max 4GB),
+Postgres `shared_buffers` reduzieren, n8n-Worker-Anzahl begrenzen.
+Ein Upgrade ist erst wieder möglich wenn Hetzner CX-Server nachliefert.
 
 ### B2: WireGuard auf Hetzner einrichten
 
@@ -559,8 +548,7 @@ INSERT INTO workflow_routes (tenant_id, workflow_key, compliance_tier, available
 | `{"models":[]}` nach OLLAMA_MODELS-Änderung | Modelle liegen noch in ~/.ollama, nicht in /Volumes/LLM | rsync-Migration + Ollama-Restart |
 | `ollama pull qwen3-coder:7b` schlägt fehl | Slug existiert nicht in Ollama-Library | Korrekt: `qwen3.6:7b` (mit Punkt) |
 | LiteLLM Install schlägt fehl (Python 3.14) | orjson/PyO3 unterstützt Python ≤3.13 | LiteLLM läuft in Coolify auf Hetzner — kein Lokal-Install nötig |
-| Hetzner CX42 nicht verfügbar | Alte Generation | Aktuelle Generation: CX43 (8 vCPU, 16GB, ~€16/Monat) — im Tab "x86 Intel/AMD", nicht CPX |
-| CPX42 als CX43-Ersatz | CPX42 hat 40GB SSD, CX33 hat 80GB → Rescale schlägt fehl; CPX42 kostet €25.49 (60% teurer als CX43) | Warten auf CX43-Verfügbarkeit, auf CX33 bleiben |
+| CX-Server ausverkauft (Stand 2026-05-04) | Hetzner liefert CX-Serie gerade nicht | CX33 bleibt dauerhaftes Setup; CPX-Serie kein Ersatz (weniger Storage, teurer) |
 | `at >> ~/.zshrc` hat keinen Effekt | `at` ist ein Job-Scheduler, nicht `cat` | `nano ~/.zshrc` oder `echo '...' >> ~/.zshrc` |
 | Git push fehlgeschlagen (HTTPS) | Remote auf HTTPS, keine Credentials | `git remote set-url origin git@github.com:EPPCOM-Solutions/eppcom-projects.git` |
 | pf-Regel für falsches utun | WG-Interface-Name variiert | `ifconfig \| grep utun` vor/nach `wg-quick up` vergleichen |

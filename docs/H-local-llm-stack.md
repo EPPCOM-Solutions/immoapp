@@ -15,7 +15,7 @@
 
 ```
  ┌─────────────────────┐    ┌────────────────────────────────────────────────┐
- │ Tenant-Workloads    │    │ Hetzner workflows (CX33, Ziel: CX43) 24/7 Nürnberg │
+ │ Tenant-Workloads    │    │ Hetzner workflows (CX33) 24/7 in Nürnberg          │
  │ Anwälte, Ärzte,     │    │                                                │
  │ Steuerberater,      │    │   Coolify ─► n8n / Typebot / Postgres / RAG    │
  │ Makler, Handwerker, │    │                                                │
@@ -60,7 +60,7 @@
 2. **Operational:** Mac primary, EU-Cloud (Mistral FR mit AVV) als auto-Fallback. 24/7 Verfügbarkeit für Termine/Bestellungen/RAG
 3. **Public + Coding:** alles erlaubt, Cost-Optimierung im Vordergrund
 
-**Kosten-Ziel:** ~€18–25/Monat (CX43-Upgrade +€5, Server-2-Kündigung −€7, Mistral pay-per-use ~€2–5)
+**Kosten-Ziel:** ~€10–18/Monat (Server-2-Kündigung −€7, Mistral pay-per-use ~€2–5; kein CX-Upgrade — keine CX-Server bei Hetzner verfügbar Stand 2026-05-04)
 **Latenz-Ziel:** Mac via WG <500ms TTFT (kein Cloudflare-Hop), Mistral <1.2s, z.ai <1.5s
 **Verfügbarkeit:** Operational/Public 99.5% (Cloud-Fallback), Strict = Mac-Verfügbarkeit (Geschäftszeiten-Pflege)
 
@@ -250,7 +250,7 @@ Ersparnis nur bei Cloud-Tier relevant (lokal kostet eh nichts außer RAM/Strom).
 
 | Posten | Erwartung | Notiz |
 |---|---|---|
-| Hetzner workflows **CX33** (aktuell) | ~€8–10 | Upgrade auf CX43 sobald verfügbar — CX43 nicht CPX42! |
+| Hetzner workflows **CX33** (dauerhaft) | ~€8–10 | Kein Upgrade geplant — CX-Server bei Hetzner ausverkauft (Stand 2026-05-04), CPX-Serie nicht sinnvoll (weniger Storage, teurer) |
 | Hetzner Object Storage (RAG-Backups) | €4.99 | läuft eh |
 | Hetzner Backups + IPv4 + Snapshots | ~€2.50 | läuft eh |
 | **EPPCOM-LLM Server kündigen** | **−€7** | nach erfolgreicher Migration |
@@ -258,7 +258,7 @@ Ersparnis nur bei Cloud-Tier relevant (lokal kostet eh nichts außer RAM/Strom).
 | OpenRouter (GLM-5/DeepSeek) | €0–5 | nur public/coding, pay-per-use |
 | **Mistral La Plateforme** (operational EU-Cloud) | €2–8 | Mistral Small + Medium pay-per-use, AVV inklusive |
 | Cloudflare Tunnel | €0 | Free-Tier (nur public/coding-Endpoint) |
-| WireGuard | €0 | self-hosted auf workflows-CX33/CX43 |
+| WireGuard | €0 | self-hosted auf workflows-CX33 |
 | Strom Mac (Geschäftszeiten + Pre-Warm) | ~€5–10 | Mo–Fr 7:30–20:30 caffeinated |
 | **Summe nach Migration** | **~€26–35/Monat** | mehr als v3, dafür Drei-Tier-Compliance + 24/7-Operational-Verfügbarkeit |
 
@@ -509,7 +509,7 @@ Mac → Hetzner LiteLLM. Subdomain `mac-ollama.eppcom.de`. Tunnel terminiert in 
 ### 7a — WireGuard-Server auf Hetzner workflows
 
 ```bash
-# Auf workflows-CX43 (per SSH)
+# Auf workflows-CX33 (per SSH)
 sudo apt update && sudo apt install -y wireguard
 sudo sysctl -w net.ipv4.ip_forward=1
 echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
