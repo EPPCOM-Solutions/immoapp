@@ -1,0 +1,9 @@
+{
+  "name": "root",
+  "private": true,
+  "scripts": {
+    "build": "cd app && npm run build",
+    "start": "cd app && npm run start",
+    "install": "cd app && npm install"
+  }
+}
