@@ -4,7 +4,9 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const token = request.cookies.get('lm_auth_token')?.value;
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/api/auth') || request.nextUrl.pathname.startsWith('/login');
+  const isAuthRoute = request.nextUrl.pathname.startsWith('/api/auth') || 
+                      request.nextUrl.pathname.startsWith('/login') ||
+                      request.nextUrl.pathname.startsWith('/api/properties');
   
   if (!token && !isAuthRoute) {
     // Exclude static files, images, etc.
