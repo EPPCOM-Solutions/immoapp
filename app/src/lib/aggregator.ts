@@ -222,11 +222,11 @@ export async function aggregateProperties(settings: SearchSettings): Promise<Pro
   const { locations, activePortals: portals, intent, propertyType, provisionsfrei, radius } = settings;
   const promises: Promise<Property[]>[] = [];
 
-  const pt = propertyType || '';
+  const pt = propertyType || 'wohnung';
   locations.forEach(loc => {
-    if (portals.includes('Kleinanzeigen')) promises.push(fetchKleinanzeigen(loc, intent, propertyType, provisionsfrei || false, radius || 0));
-    if (portals.includes('Immobilo')) promises.push(fetchImmobilo(loc, intent, propertyType, provisionsfrei || false));
-    if (portals.includes('Regional')) promises.push(fetchRegional(loc, intent, propertyType));
+    if (portals.includes('Kleinanzeigen')) promises.push(fetchKleinanzeigen(loc, intent, pt, provisionsfrei || false, radius || 0));
+    if (portals.includes('Immobilo')) promises.push(fetchImmobilo(loc, intent, pt, provisionsfrei || false));
+    if (portals.includes('Regional')) promises.push(fetchRegional(loc, intent, pt));
   });
 
   const results = await Promise.all(promises);
