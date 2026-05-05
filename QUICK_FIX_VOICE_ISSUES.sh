@@ -16,7 +16,7 @@ NC='\033[0m'
 
 # Get latest code
 echo -e "${BLUE}[STEP 1/5]${NC} Pulling latest code with TTS/STT fixes..."
-cd /root/marcello2304
+cd /root/eppcom
 git pull origin main
 echo -e "${GREEN}✓ Code updated${NC}"
 echo ""

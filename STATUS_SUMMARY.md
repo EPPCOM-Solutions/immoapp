@@ -264,4 +264,4 @@ docker exec ollama ollama run phi:2b "Hallo, wie geht es dir?"
 **Erstellt:** 22.03.2026
 **Letzter Commit:** 4e08685
 **Branch:** main
-**Repository:** github.com/marcello2304/marcello2304
+**Repository:** github.com/EPPCOM-Solutions/immoapp

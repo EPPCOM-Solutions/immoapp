@@ -8,7 +8,7 @@ async function checkAdminAccess() {
   const cookieStore = await cookies();
   const token = cookieStore.get('lm_auth_token')?.value;
   if (!token) return null;
-   
+
   const user = verifyToken(token);
   if (!user || user.role !== 'admin') return null;
   return user;

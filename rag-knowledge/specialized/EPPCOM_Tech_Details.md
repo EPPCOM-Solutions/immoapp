@@ -1,10 +1,10 @@
-# EPPCOM Technical Deep-Dive
+# Eppkom Technical Deep-Dive
 
 ## RAG-Pipeline Architektur
 
 ### Komponenten-Stack
 
-Der EPPCOM RAG-Stack besteht aus folgenden Komponenten:
+Der Eppkom RAG-Stack besteht aus folgenden Komponenten:
 
 1. Dokument Upload: Benutzer lädt PDFs, Word-Dateien oder Markdown-Dokumente hoch
 2. n8n Workflow Document Processor: Automatische Verarbeitung der hochgeladenen Dokumente

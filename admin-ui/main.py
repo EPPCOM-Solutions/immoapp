@@ -53,8 +53,9 @@ S3_BUCKET   = os.getenv("S3_BUCKET",     "rag-platform-prod")
 S3_KEY      = os.getenv("S3_ACCESS_KEY", "")
 S3_SECRET   = os.getenv("S3_SECRET_KEY", "")
 S3_REGION   = os.getenv("S3_REGION",     "eu-central-003")
-N8N_URL     = os.getenv("N8N_URL",       "https://workflows.eppcom.de")
-OLLAMA_URL  = os.getenv("OLLAMA_URL",    "http://10.0.0.3:11434")
+N8N_URL          = os.getenv("N8N_URL",          "https://workflows.eppcom.de")
+OLLAMA_URL       = os.getenv("OLLAMA_URL",       "http://10.0.0.3:11434")
+OPENROUTER_KEY   = os.getenv("OPENROUTER_API_KEY", "")
 EMBED_MODEL = os.getenv("EMBED_MODEL",   "qwen3-embedding:0.6b")
 EMBED_DIM   = int(os.getenv("EMBED_DIM", "1024"))
 
@@ -2146,7 +2147,101 @@ async def public_chat(request: Request):
     }
 
 
+# ── Öffentlicher LLM-Chat-Proxy (OpenRouter) ────────────────────────────────
+_OPENROUTER_MODELS: dict[str, str] = {
+    "gemma":    "google/gemma-3-4b-it:free",
+    "llama":    "meta-llama/llama-3.1-8b-instruct:free",
+    "mistral":  "mistralai/mistral-7b-instruct:free",
+    "qwen":     "qwen/qwen3-8b:free",
+    "deepseek": "deepseek/deepseek-chat-v3-0324:free",
+}
+
+@app.post("/api/public/llm-chat")
+async def public_llm_chat(request: Request):
+    """Proxy für Modell-Auswahl im Widget. Kein Auth nötig (public)."""
+    body = await request.json()
+    messages = body.get("messages", [])
+    model = body.get("model", "gemma")
+
+    if not messages:
+        raise HTTPException(400, "messages darf nicht leer sein")
+    if model not in _OPENROUTER_MODELS:
+        raise HTTPException(400, f"Unbekanntes Modell: {model}")
+    if not OPENROUTER_KEY:
+        raise HTTPException(503, "OpenRouter nicht konfiguriert")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_KEY}",
+                "HTTP-Referer": "https://eppcom.de",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": _OPENROUTER_MODELS[model],
+                "messages": messages,
+                "max_tokens": 512,
+                "temperature": 0.7,
+            },
+        )
+    resp.raise_for_status()
+    data = resp.json()
+    return {"reply": data["choices"][0]["message"]["content"]}
+
+
 # ── Conversations Admin-Endpoint ─────────────────────────────────────────────
+_VALID_SCHEMA_RE = re.compile(r'^[a-z][a-z0-9_]{0,62}$')
+
+
+async def _fetch_bot_conversations(db, schema_name: str, tenant_id_str: str, tenant_slug: str) -> list:
+    """Fetch voicebot/widget conversations from a tenant schema table."""
+    if not _VALID_SCHEMA_RE.match(schema_name):
+        return []
+    try:
+        rows = await db.fetch(
+            f"""SELECT
+                    c.id, $1 AS tenant_id, $2 AS tenant_slug,
+                    NULL::text AS user_id, NULL::text AS user_name, NULL::text AS user_email,
+                    c.session_id,
+                    c.query     AS user_question,
+                    c.response  AS rag_answer,
+                    NULL::text  AS kernaussage,
+                    NULL::text  AS kernfrage,
+                    c.chunks_used::text AS chunks_used,
+                    c.latency_ms,
+                    NULL::text  AS sources,
+                    c.created_at,
+                    c.bot_id,
+                    c.model
+                FROM {schema_name}.conversations c
+                ORDER BY c.created_at DESC LIMIT 200""",
+            tenant_id_str, tenant_slug,
+        )
+        result = []
+        for r in rows:
+            d = dict(r)
+            d["id"] = str(d["id"])
+            d["created_at"] = d["created_at"].isoformat() if d["created_at"] else None
+            result.append(d)
+        return result
+    except Exception as e:
+        logging.warning(f"_fetch_bot_conversations({schema_name}): {e}")
+        return []
+
+
+def _serialize_public_conv(r) -> dict:
+    d = dict(r)
+    d["id"] = str(d["id"])
+    d["tenant_id"] = str(d["tenant_id"])
+    if d.get("user_id"):
+        d["user_id"] = str(d["user_id"])
+    d["created_at"] = d["created_at"].isoformat() if d["created_at"] else None
+    if isinstance(d.get("sources"), str):
+        d["sources"] = json.loads(d["sources"])
+    return d
+
+
 @app.get("/api/conversations")
 async def list_conversations(
     tenant_id: Optional[str] = Query(None),
@@ -2154,9 +2249,11 @@ async def list_conversations(
     session: SessionInfo = Depends(require_auth),
 ):
     db = await get_db()
+    result = []
+
     if session.is_superadmin():
         conditions = []
-        params = []
+        params: list = []
         idx = 1
         if tenant_id:
             conditions.append(f"c.tenant_id = ${idx}")
@@ -2175,6 +2272,26 @@ async def list_conversations(
                 {where} ORDER BY c.created_at DESC LIMIT 200""",
             *params,
         )
+        result = [_serialize_public_conv(r) for r in rows]
+
+        # Also load bot conversations from each relevant tenant schema
+        if not user_id:  # bot convos have no user_id
+            if tenant_id:
+                tenant_rows = await db.fetch(
+                    "SELECT id, slug, schema_name FROM public.tenants WHERE id=$1::uuid AND status='active'",
+                    uuid.UUID(tenant_id),
+                )
+            else:
+                tenant_rows = await db.fetch(
+                    "SELECT id, slug, schema_name FROM public.tenants WHERE status='active'",
+                )
+            for t in tenant_rows:
+                schema = t["schema_name"] or f"tenant_{t['slug']}"
+                bot_rows = await _fetch_bot_conversations(
+                    db, schema, str(t["id"]), t["slug"]
+                )
+                result.extend(bot_rows)
+
     elif session.is_admin() and session.tenant_id:
         if user_id:
             rows = await db.fetch(
@@ -2186,6 +2303,7 @@ async def list_conversations(
                    ORDER BY c.created_at DESC LIMIT 200""",
                 uuid.UUID(session.tenant_id), user_id,
             )
+            result = [_serialize_public_conv(r) for r in rows]
         else:
             rows = await db.fetch(
                 """SELECT c.*, t.slug AS tenant_slug, u.display_name AS user_name, u.email AS user_email
@@ -2196,8 +2314,22 @@ async def list_conversations(
                    ORDER BY c.created_at DESC LIMIT 200""",
                 uuid.UUID(session.tenant_id),
             )
+            result = [_serialize_public_conv(r) for r in rows]
+
+            # Also load bot conversations from this tenant's schema
+            tenant_row = await db.fetchrow(
+                "SELECT slug, schema_name FROM public.tenants WHERE id=$1::uuid",
+                uuid.UUID(session.tenant_id),
+            )
+            if tenant_row:
+                schema = tenant_row["schema_name"] or f"tenant_{tenant_row['slug']}"
+                bot_rows = await _fetch_bot_conversations(
+                    db, schema, session.tenant_id, tenant_row["slug"]
+                )
+                result.extend(bot_rows)
+
     else:
-        # User sieht eigene + freigegebene Chats
+        # User sieht eigene + freigegebene Chats (keine anonymen Bot-Konversationen)
         rows = await db.fetch(
             """SELECT c.*, t.slug AS tenant_slug, u.display_name AS user_name, u.email AS user_email
                FROM public.conversations c
@@ -2210,19 +2342,11 @@ async def list_conversations(
                ORDER BY c.created_at DESC LIMIT 200""",
             session.user_id,
         )
+        result = [_serialize_public_conv(r) for r in rows]
 
-    result = []
-    for r in rows:
-        d = dict(r)
-        d["id"] = str(d["id"])
-        d["tenant_id"] = str(d["tenant_id"])
-        if d.get("user_id"):
-            d["user_id"] = str(d["user_id"])
-        d["created_at"] = d["created_at"].isoformat() if d["created_at"] else None
-        if isinstance(d.get("sources"), str):
-            d["sources"] = json.loads(d["sources"])
-        result.append(d)
-    return result
+    # Sort combined results by created_at descending
+    result.sort(key=lambda x: x.get("created_at") or "", reverse=True)
+    return result[:200]
 
 
 @app.post("/api/conversations/delete")

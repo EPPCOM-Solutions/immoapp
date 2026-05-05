@@ -60,7 +60,7 @@ echo ""
 
 # Test 4: Cartesia API Key configured
 echo -e "${BLUE}[TEST 4]${NC} Cartesia API Key Check..."
-if grep -q "CARTESIA_API_KEY=sk_car_" .env.server2; then
+if grep -qE "^CARTESIA_API_KEY=." .env.server2; then
     echo -e "${GREEN}✓ PASS: Cartesia API Key configured${NC}"
     CARTESIA_KEY=$(grep "CARTESIA_API_KEY=" .env.server2 | cut -d= -f2)
     echo "  Key: ${CARTESIA_KEY:0:15}...${CARTESIA_KEY: -4} (valid format)"

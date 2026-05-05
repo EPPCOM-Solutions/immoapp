@@ -6,3 +6,24 @@ diagnose-output.txt
 *.log
 __pycache__/
 *.pyc
+auth_users.json
+
+# Temp & test files
+debug-livekit.html
+swp_test.html
+test-*.ts
+test-*.js
+test-*.py
+*.html
+ingest.json
+retrieval.json
+switch-llm.sh
+antigravity.md
+
+# Geklonte Sub-Repos
+eppcom-projects/
+antigravProject/
+eppcom-homepage/
+homepage-widget/
+jitsi-meet/
+monitoring/

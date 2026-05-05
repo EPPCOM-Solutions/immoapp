@@ -219,9 +219,10 @@ export function filterProperties(properties: Property[], settings: SearchSetting
 }
 
 export async function aggregateProperties(settings: SearchSettings): Promise<Property[]> {
-  const { locations, portals, intent, propertyType, provisionsfrei, radius } = settings;
+  const { locations, activePortals: portals, intent, propertyType, provisionsfrei, radius } = settings;
   const promises: Promise<Property[]>[] = [];
 
+  const pt = propertyType || '';
   locations.forEach(loc => {
     if (portals.includes('Kleinanzeigen')) promises.push(fetchKleinanzeigen(loc, intent, propertyType, provisionsfrei || false, radius || 0));
     if (portals.includes('Immobilo')) promises.push(fetchImmobilo(loc, intent, propertyType, provisionsfrei || false));

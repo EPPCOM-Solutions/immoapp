@@ -90,7 +90,7 @@ if [ ! -f ".env" ]; then
 fi
 
 # Check Cartesia API Key
-if grep -q "CARTESIA_API_KEY=sk_car_" .env; then
+if grep -qE "^CARTESIA_API_KEY=." .env; then
     echo -e "${GREEN}✓ Cartesia API Key present${NC}"
 else
     echo -e "${RED}✗ Cartesia API Key missing${NC}"

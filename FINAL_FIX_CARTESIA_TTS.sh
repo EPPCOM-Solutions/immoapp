@@ -40,13 +40,13 @@ echo ""
 
 # Step 2: Verify .env.server2
 echo -e "${BLUE}[STEP 2/6]${NC} Verifying Cartesia API Key in .env.server2..."
-if grep -q "CARTESIA_API_KEY=sk_car_" .env.server2; then
+if grep -qE "^CARTESIA_API_KEY=." .env.server2; then
     echo -e "${GREEN}✓ Cartesia API Key found${NC}"
     CARTESIA_KEY=$(grep "CARTESIA_API_KEY=" .env.server2 | cut -d= -f2)
     echo "   Key: ${CARTESIA_KEY:0:10}...${CARTESIA_KEY: -4}"
 else
     echo -e "${RED}✗ Cartesia API Key NOT found in .env.server2${NC}"
-    echo "   Please add: CARTESIA_API_KEY=sk_car_..."
+    echo "   Please add: CARTESIA_API_KEY=<your-cartesia-key>"
     exit 1
 fi
 echo ""

@@ -82,7 +82,7 @@ echo -e "${GREEN}✓ RAG error handling improved${NC}"
 echo ""
 
 echo -e "${BLUE}[STEP 4/5]${NC} Checking Cartesia API Key..."
-if grep -q "CARTESIA_API_KEY=sk_car_" /opt/eppcom-server2/.env; then
+if grep -qE "^CARTESIA_API_KEY=." /opt/eppcom-server2/.env; then
     CARTESIA_KEY=$(grep "CARTESIA_API_KEY=" /opt/eppcom-server2/.env | cut -d= -f2)
     echo -e "${GREEN}✓ Cartesia API Key found: ${CARTESIA_KEY:0:15}...${CARTESIA_KEY: -4}${NC}"
 else
