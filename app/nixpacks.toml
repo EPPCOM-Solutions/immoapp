@@ -1,11 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_22", "pnpm"]
 
 [phases.install]
-cmds = ["npm install --no-audit --no-fund --legacy-peer-deps"]
+cmds = ["pnpm install --no-frozen-lockfile"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["pnpm run build"]
 
 [start]
-cmd = "npm run start"
+cmd = "pnpm run start"
