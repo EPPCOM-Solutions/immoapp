@@ -152,11 +152,12 @@ export async function fetchImmobilo(location: string, intent: SearchIntent, prop
 export async function fetchRegional(location: string, intent: SearchIntent, propertyType: string): Promise<Property[]> {
   try {
     const safeLoc = encodeURIComponent(location.toLowerCase());
-    const rentBuy = intent === 'rent' ? 'mieten' : 'kaufen';
-    let typeParam = 'wohnungen';
-    if (propertyType === 'haus') typeParam = 'haeuser';
-    else if (propertyType === 'grundstueck') typeParam = 'grundstuecke';
-    const url = `https://immo.swp.de/suche/${typeParam}/${rentBuy}/${safeLoc}`;
+    const rentBuy = intent === 'rent' ? 'rental' : 'sale';
+    let typeParam = 'apartment';
+    if (propertyType === 'haus') typeParam = 'house';
+    else if (propertyType === 'grundstueck') typeParam = 'plot';
+    
+    const url = `https://immo.swp.de/suchergebnisse?t=${typeParam}:${rentBuy}:living&l=${safeLoc}`;
     const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 60 } });
     if (!response.ok) return [];
     const html = await response.text();
